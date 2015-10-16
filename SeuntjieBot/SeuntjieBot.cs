@@ -175,21 +175,24 @@ namespace SeuntjieBot
             gettotalRains();
             CommandState.Add("balance", true);
             CommandState.Add("user", true);
-            CommandState.Add("redlist", true);
-            CommandState.Add("blacklist", true);
-            CommandState.Add("status", true);
-            CommandState.Add("title", true);
-            CommandState.Add("note", true);
-            CommandState.Add("usertype", true);
-            CommandState.Add("halfmute", true);
+            //CommandState.Add("redlist", true);
+            //CommandState.Add("blacklist", true);
+            //CommandState.Add("status", true);
+            //CommandState.Add("title", true);
+            //CommandState.Add("note", true);
+            //CommandState.Add("usertype", true);
+            //CommandState.Add("halfmute", true);
             CommandState.Add("btc", true);
             CommandState.Add("convert", true);
-            CommandState.Add("mute", true);
-            CommandState.Add("unmute", true);
+            //CommandState.Add("mute", true);
+            //CommandState.Add("unmute", true);
             CommandState.Add("rained", true);
-            CommandState.Add("rain", true);
+            CommandState.Add("rain", false);
             CommandState.Add("last", true);
             CommandState.Add("bot", true);
+
+            populateNegative();
+            populatePositive();
         }
 
         //core functions
@@ -359,16 +362,16 @@ namespace SeuntjieBot
                                 sent = true;
                                 InternalSendMessage(new SendMessage { Message = CommandString(), ToUser = CurUser, Pm = true });
                             }
-                            if (!sent && tooquick < 2)
-                            {
-                                if (!sent)
-                                    sent = CheckBotCommands(sent, chat, CurUser);
-
-                            }
+                            
                         }
-
-
+                        
                     }
+                }
+                if (!sent && tooquick < 2)
+                {
+                    if (!sent)
+                        sent = CheckBotCommands(sent, chat, CurUser, pm);
+
                 }
             }
 
@@ -388,6 +391,9 @@ namespace SeuntjieBot
             }
         }
 
+
+        List<Words> Positives = new List<Words>();
+        List<Words> Negatives = new List<Words>();
         /// <summary>
         /// Checks whether a non ! command should be executed, such as fuck you bot.
         /// </summary>
@@ -395,41 +401,227 @@ namespace SeuntjieBot
         /// <param name="chat"></param>
         /// <param name="CurUser"></param>
         /// <returns></returns>
-        private bool CheckBotCommands(bool sent, chat chat, User CurUser)
+        private bool CheckBotCommands(bool sent, chat chat, User CurUser, bool pm)
         {
-            List<KeyValuePair<string, int>> Positives = new List<KeyValuePair<string, int>>();
-            List<KeyValuePair<string, int>> Negatives = new List<KeyValuePair<string, int>>();
+            
             List<string> Specifics = new List<string>();
             string[] Msgs = chat.Message.Split(' ');
             if (Msgs[Msgs.Length - 1] == ("bot") || Msgs[Msgs.Length - 1] == ("seuntjiebot"))
             {
-                if (chat.Message.EndsWith("you bot")||chat.Message.ToLower().EndsWith("you seuntjiebot"))
+
+                //check commands like is around, roll a dice, etc etc.
+
+                //respond negative/positive
+                if (!sent)
                 {
                     int score = 0;
-                    foreach (KeyValuePair<string,int> kv in Positives)
+                    bool scored = false;
+                    foreach (string s in Msgs)
                     {
-                        if (chat.Message.ToLower().Contains(kv.Key))
+                        foreach (Words kv in Positives)
                         {
-                            score += kv.Value;
+
+                            if (s.ToLower() == kv.word)
+                            {
+                                score += kv.score;
+                                scored = true;
+                            }
+
+                        }
+                        foreach (Words kv in Negatives)
+                        {
+
+                            if (s.ToLower() == kv.word)
+                            {
+                                score -= kv.score;
+                                scored = true;
+                            }
+
                         }
                     }
-                }
-                if (chat.Message.EndsWith("you bot") || chat.Message.ToLower().EndsWith("you seuntjiebot"))
-                {
-                    int score = 0;
-                    foreach (KeyValuePair<string, int> kv in Negatives)
+
+
+                    foreach (string s in Msgs)
                     {
-                        if (chat.Message.ToLower().Contains(kv.Key))
+                        if (s.ToLower() == "not" || s.ToLower() == "don't" || s.ToLower() == "dont")
                         {
-                            score -= kv.Value;
+                            score = -score;
                         }
                     }
+
+                    List<string> Responses = new List<string>();
+                    if (score < 0)
+                    {
+                        foreach (Words x in Negatives)
+                        {
+                            if (-x.score >= score - 1 && -x.score <= score + 1)
+                            {
+                                Responses.Add(x.ToString());
+                            }
+                        }
+                        //respond negative
+                        if (Responses.Count == 0)
+                        {
+                            int Maxval = 0;
+                            string maxKey = "";
+                            foreach (Words x in Negatives)
+                            {
+                                if (x.score > Maxval)
+                                    maxKey = x.ToString();
+                            }
+                            Responses.Add(maxKey);
+                        }
+                    }
+                    else if (score > 0)
+                    {
+                        //respond psotive or negative
+                        foreach (Words x in Positives)
+                        {
+                            if (x.score < score)
+                            {
+                                Responses.Add(x.ToString());
+                            }
+
+                        }
+                        foreach (Words x in Negatives)
+                        {
+                            if (x.score <= 1)
+                            {
+                                Responses.Add(x.ToString());
+                            }
+                        }
+
+                    }
+                    else if (scored)
+                    {
+
+                        Responses.Add("I'm confused");
+                    }
+                    if (Responses.Count>0)
+                        InternalSendMessage(new SendMessage { Message = Responses[r.Next(0, Responses.Count)].ToString() + " " + CurUser.Username, ToUser = CurUser, Pm = pm });
                 }
-                
             }
             return sent;
         }
         
+        void populateNegative()
+        {
+            Negatives.Add(new Words("cunt", 4, true, true, true));
+            Negatives.Add(new Words("shit", 2, true, true));
+            Negatives.Add(new Words("asshole", 2, true, true, true));
+            Negatives.Add(new Words("dick", 3, true, true, true));
+            Negatives.Add(new Words("fuck", 4));
+            Negatives.Add(new Words("fucker", 4, true, false));
+            Negatives.Add(new Words("fuckhead", 5, true, true, true));
+            Negatives.Add(new Words("dickhead", 3, true, true, true));
+            Negatives.Add(new Words("dickface", 3, true, true, true));
+            Negatives.Add(new Words("motherfucker", 5, true, false));
+            Negatives.Add(new Words("faggot", 2, true, false));
+            Negatives.Add(new Words("pussy", 3, true, true, true));
+            Negatives.Add(new Words("dumbass", 1, true, false));
+            Negatives.Add(new Words("idiot", 2, true, false));
+            Negatives.Add(new Words("moron", 1, true, false));
+            Negatives.Add(new Words("retard", 2, true, false));
+            Negatives.Add(new Words("bitch", 2, true, false));
+            Negatives.Add(new Words("retarded", 2, true, true));
+            Negatives.Add(new Words("fucktard", 4, true, true, true));
+            Negatives.Add(new Words("whore", 2, true, true, true));
+            Negatives.Add(new Words("slut", 2, true, true, true));
+            Negatives.Add(new Words("skank", 2, true, true, true));
+            Negatives.Add(new Words("arse ", 1, true, false));
+            Negatives.Add(new Words("ass", 1, true, true, true));
+            Negatives.Add(new Words("ass-hat", 2, true, true, true));
+            Negatives.Add(new Words("assbag", 2, true, true, true));
+            Negatives.Add(new Words("assface", 2, true, true, true));
+            Negatives.Add(new Words("bastard", 2, true, false));
+            Negatives.Add(new Words("bitchass", 2, true, false));
+            Negatives.Add(new Words("bitchy", 1, true, true));
+            Negatives.Add(new Words("bollocks", 1, true, true));
+            Negatives.Add(new Words("bullshit", 1, true, true));
+            Negatives.Add(new Words("buttfucker", 2, true, true, true));
+            Negatives.Add(new Words("choad", 2, true, true, true));
+            Negatives.Add(new Words("cock", 2, true, true, true));
+            Negatives.Add(new Words("cockass", 2, true, false));
+            Negatives.Add(new Words("cockface", 2, true, false));
+            Negatives.Add(new Words("cockfucker", 2, true, false));
+            Negatives.Add(new Words("cuntface", 3, true, false));
+            Negatives.Add(new Words("damn", 1));
+            Negatives.Add(new Words("dickwad", 3, true, true, true));
+            Negatives.Add(new Words("dildo", 2, true, true, true));
+            Negatives.Add(new Words("douchebag", 2, true, false));
+            Negatives.Add(new Words("dumbfuck", 4, true, false));
+            Negatives.Add(new Words("fuckwad", 4, true, true, true));
+            Negatives.Add(new Words("fuckup", 4, true, false));
+            Negatives.Add(new Words("fuckoff", 5,true, false ));
+            Negatives.Add(new Words("hoe ", 2, true, true, true));
+            Negatives.Add(new Words("jackass", 1,true, false));
+            Negatives.Add(new Words("jerkass", 2,true, false));
+            Negatives.Add(new Words("jizz", 1, true, true));
+            Negatives.Add(new Words("loser", 1, true, true, true));
+            Negatives.Add(new Words("mothafucka", 5, true, false));
+            Negatives.Add(new Words("motherfucking", 5, true, false));
+            Negatives.Add(new Words("penis", 2, true, true, true));
+            Negatives.Add(new Words("piss", 1, true, true));
+            Negatives.Add(new Words("pissed", 1, true, true));
+            Negatives.Add(new Words("prick", 2, true, false));
+            Negatives.Add(new Words("schlong", 2, true, true, true));
+            Negatives.Add(new Words("shitface", 3, true, false));
+            Negatives.Add(new Words("shithole", 3, true, false));
+            Negatives.Add(new Words("suckass", 3, true, false));
+            Negatives.Add(new Words("tard", 1, true, false));
+            Negatives.Add(new Words("twat", 2, true, false));
+            Negatives.Add(new Words("screw", 2));
+            Negatives.Add(new Words("wanker", 2, true, false));
+            Negatives.Add(new Words("fucking", 4, true, false));
+            Negatives.Add(new Words("hate", 4));
+        }
+        void populatePositive()
+        {
+            Positives.Add(new Words("like", 4));
+            Positives.Add(new Words("nice", 1, true, true));
+            Positives.Add(new Words("love", 5));
+            Positives.Add(new Words("cool", 1, true, true));
+            Positives.Add(new Words("awesome", 3, true, true));
+            Positives.Add(new Words("wonderful", 3, true, true));
+            Positives.Add(new Words("thanks", 2));
+            Positives.Add(new Words("thank", 2));
+            Positives.Add(new Words("pretty", 1, true, true));
+            Positives.Add(new Words("beatiful", 2, true, true));
+            Positives.Add(new Words("charm", 1, true, true, true));
+            Positives.Add(new Words("charming", 2, true, true));
+            Positives.Add(new Words("cheery", 1, true, true));
+            Positives.Add(new Words("cheerful", 1, true, true));
+            Positives.Add(new Words("cute", 2, true, true));
+            Positives.Add(new Words("delightful", 3, true, true));
+            Positives.Add(new Words("dazzling", 3, true, true));
+            Positives.Add(new Words("exhilarating", 3, true, true));
+            Positives.Add(new Words("fantastic", 4, true, true));
+            Positives.Add(new Words("good", 2, true, true));
+            Positives.Add(new Words("fabulous", 3, true, true));
+            Positives.Add(new Words("fair", 2, true, true));
+            Positives.Add(new Words("fun", 3, true, true));
+            Positives.Add(new Words("friendly", 2, true, true));
+            Positives.Add(new Words("flawless", 4, true, true));
+            Positives.Add(new Words("fancy", 3, true, true));
+            Positives.Add(new Words("generous", 2, true, true));
+            Positives.Add(new Words("genius", 4, true, true));
+            Positives.Add(new Words("groovy", 1, true, true));
+            Positives.Add(new Words("good-humored", 2, true, true));
+            Positives.Add(new Words("in-love", 3, true, true));
+            Positives.Add(new Words("intelligent", 3, true, true));
+            Positives.Add(new Words("joyful", 2, true, true));
+            Positives.Add(new Words("magnificent", 4, true, true));
+            Positives.Add(new Words("majestic", 4, true, true));
+            Positives.Add(new Words("marvelous", 4, true, true));
+            Positives.Add(new Words("magical",2, true, true));
+            Positives.Add(new Words("mellow", 1, true, true));
+            Positives.Add(new Words("noble", 2, true, true));
+            Positives.Add(new Words("perfect", 5, true, true));
+            Positives.Add(new Words("precious", 5, true, true));
+            Positives.Add(new Words("worthy", 1, true, true));
+
+        }
+
         /// <summary>
         /// Generates a List of possible commands that are enabled in the bot
         /// </summary>
@@ -439,64 +631,27 @@ namespace SeuntjieBot
 
             string s = "Commands: ";
             bool listed = false;
-            //if (parent.chkUser.Checked)
+            foreach (KeyValuePair<string, bool> es in CommandState )
             {
-                s += "User [username]";
-                listed = true;
-            }
-            //if (parent.chkBalance.Checked)
-            {
-                if (listed)
-                    s += ", ";
-                s += "Balance";
-                listed = true;
-            }
-            //if (parent.chkChart.Checked)
-            {
-                if (listed)
-                    s += ", ";
-                s += "Chart (username)";
-                listed = true;
-            }
-            //if (parent.chkAddress.Checked)
-            {
-                if (listed)
-                    s += ", ";
-                s += "address [bitcoin address]";
-                listed = true;
-            }
-            //if (parent.chkPrice.Checked)
-            {
-                if (listed)
-                    s += ", ";
-                s += "[Currency]";
-                listed = true;
-            }
-            //if (parent.chkRained.Checked)
-            {
-                if (listed)
-                    s += ", ";
-                s += "Rained";
-                listed = true;
-            }
-            //if (parent.chkVerify.Checked)
-            {
-                if (listed)
-                    s += ", ";
-                s += "verify [betid/username]";
-                listed = true;
-            }
-
-            foreach (Command s2 in Commands)
-            {
-
-                if (s2.Enabled)
+                if (es.Value)
                 {
+                    if (es.Key!="bot")
                     if (listed)
                         s += ", ";
-                    s += s2.sCommand;
+                    s += es.Key;
+                    listed = true;
                 }
             }
+                foreach (Command s2 in Commands)
+                {
+
+                    if (s2.Enabled)
+                    {
+                        if (listed)
+                            s += ", ";
+                        s += s2.sCommand;
+                    }
+                }
             return s;
         }
 
@@ -596,7 +751,7 @@ namespace SeuntjieBot
         }
         public bool redlist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["redlist"] && ismod)
+            if (ismod)
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -635,7 +790,7 @@ namespace SeuntjieBot
         }
         public bool blacklist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["blacklist"] && ismod)
+            if (ismod)
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -672,9 +827,87 @@ namespace SeuntjieBot
             }
             return false;
         }
+        public bool deredlist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            if (ismod)
+            {
+                string username = "";
+                int start = GetName(msgs, 2, out username);
+                string reason = BuildString(msgs, start);
+                writelog("Redlisted user " + username + " for reason: " + reason, CurUser);
+
+                User tmp = null;
+                int id = -1;
+                if (int.TryParse(username, out id))
+                {
+                    tmp = User.FindUser(id);
+                    if (tmp == null)
+                        tmp = User.FindUser(username);
+                }
+                else
+                {
+                    tmp = User.FindUser(username);
+                }
+                if (tmp != null)
+                {
+                    if (tmp.Listed < 1)
+                        tmp.Listed = 1;
+                    if (activeusers.Contains(tmp))
+                    {
+                        activeusers[activeusers.IndexOf(tmp)] = tmp;
+                    }
+                    MSSQL.Instance().DeRedlist(tmp);
+
+
+                    InternalSendMessage(new SendMessage { Message = string.Format("{0} has been removed from the red list", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    return true;
+                }
+
+            }
+            return false;
+        }
+        public bool deblacklist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            if (ismod)
+            {
+                string username = "";
+                int start = GetName(msgs, 2, out username);
+                string reason = BuildString(msgs, start);
+                writelog("Blacklisted user " + username + " for reason: " + reason, CurUser);
+
+                User tmp = null;
+                int id = -1;
+                if (int.TryParse(username, out id))
+                {
+                    tmp = User.FindUser(id);
+                    if (tmp == null)
+                        tmp = User.FindUser(username);
+                }
+                else
+                {
+                    tmp = User.FindUser(username);
+                }
+                if (tmp != null)
+                {
+                    if (tmp.Listed < 2)
+                        tmp.Listed = 2;
+                    if (activeusers.Contains(tmp))
+                    {
+                        activeusers[activeusers.IndexOf(tmp)] = tmp;
+                    }
+                    //update to DB
+                    MSSQL.Instance().DeBlacklist(tmp);
+
+                    InternalSendMessage(new SendMessage { Message = string.Format("{0} has been removed from the blacklist", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    return true;
+                }
+
+            }
+            return false;
+        }
         public bool status(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["status"] && ismod)
+            if (ismod)
             {
                 writelog("Checked status for " + msgs[2], CurUser);
                 string username = "";
@@ -742,7 +975,7 @@ namespace SeuntjieBot
         }
         public bool title(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["title"] && msgs.Count > 3 && ismod)
+            if (CommandState["user"] && msgs.Count > 3 && ismod)
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -771,7 +1004,7 @@ namespace SeuntjieBot
         }
         public bool note(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["note"] && msgs.Count > 3 && ismod)
+            if (CommandState["user"] && msgs.Count > 3 && ismod)
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -800,7 +1033,7 @@ namespace SeuntjieBot
         }
         public bool usertype(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["usertype"] && msgs.Count > 3 && ismod)
+            if (msgs.Count > 3 && ismod)
             {
                 bool go = false;
                 string username = "";
@@ -903,7 +1136,7 @@ namespace SeuntjieBot
         }
         public bool mute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["mute"]  && ismod)
+            if (ismod)
             {
                 if (CurUser.UserType == "admin" || CurUser.UserType == "op")
                     LogOnly = true;
@@ -912,7 +1145,7 @@ namespace SeuntjieBot
         }
         public bool unmute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["unmute"]  && ismod)
+            if (ismod)
             {
                 if (CurUser.UserType == "admin" || CurUser.UserType.ToLower() == "op")
                     LogOnly= false;
@@ -936,7 +1169,7 @@ namespace SeuntjieBot
         }
         public bool rain(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["rain"] && ismod)
+            if (ismod)
             {
                 if (CurUser.UserType == "admin" || CurUser.UserType.ToLower() == "op")
                 {
@@ -965,9 +1198,6 @@ namespace SeuntjieBot
                 if (tmp != null)
                 {
                     DateTime tmpDate = tmp.LastSeen;
-                    bool seen = false;
-                    
-
                     if (tmp.Uid == CurUser.Uid)
                     {
                         InternalSendMessage(new SendMessage { Message = "You're very forgetfull aren't you " + user + "?", Pm = pm, ToUser = CurUser });
@@ -975,27 +1205,21 @@ namespace SeuntjieBot
                     }
                     else
                     {
-                        if (seen)
+                        
+                        TimeSpan ago = DateTime.UtcNow - tmpDate;
+                        string s = "";
+                        if (ago.TotalMinutes <= 5)
                         {
-                            TimeSpan ago = DateTime.UtcNow - tmpDate;
-                            string s = "";
-                            if (ago.TotalMinutes <= 5)
-                            {
-                                s = string.Format("U:{0} seems to be here now, maybe you're just going a bit blind.", user);
-                            }
-                            else
-                            {
-                                s = "u:" + user + " was last seen " + (ago.TotalDays >= 1 ? ago.Days + " Days, " : "") + (ago.TotalHours > 0 ? ago.Hours + " hours, " : "") + (ago.TotalMinutes > 0 ? ago.Minutes + " Minutes " : "") + "ago, at " + tmpDate.ToString("yyyy/MM/dd HH:mm") + " UTC";
-                                //s = string.Format("U:{0} was last seen {2} hours and {3} minutes ago at {1} GMT", user, tmpDate, (int)ago.TotalHours, ago.Minutes);
-                            }
-                            InternalSendMessage(new SendMessage { Message = s, Pm = pm, ToUser = CurUser });
-                            return true;
+                            s = string.Format("U:{0} seems to be here now, maybe you're just going a bit blind.", user);
                         }
                         else
                         {
-                            InternalSendMessage(new SendMessage { Message = string.Format("I haven't seen U:{0} yet", user), Pm = pm, ToUser = CurUser });
-                            return true;
+                            s = "u:" + user + " was last seen " + (ago.TotalDays >= 1 ? ago.Days + " Days, " : "") + (ago.TotalHours > 0 ? ago.Hours + " hours, " : "") + (ago.TotalMinutes > 0 ? ago.Minutes + " Minutes " : "") + "ago, at " + tmpDate.ToString("yyyy/MM/dd HH:mm") + " UTC";
+                            //s = string.Format("U:{0} was last seen {2} hours and {3} minutes ago at {1} GMT", user, tmpDate, (int)ago.TotalHours, ago.Minutes);
                         }
+                        InternalSendMessage(new SendMessage { Message = s, Pm = pm, ToUser = CurUser });
+                        return true;
+                        
                     }
 
                 }
@@ -1014,7 +1238,7 @@ namespace SeuntjieBot
         }
         public bool enable(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["enable"] && msgs.Count > 3 && ismod)
+            if (msgs.Count > 2 && ismod)
             {
                 if (CurUser.UserType=="op")
                 {
@@ -1041,7 +1265,7 @@ namespace SeuntjieBot
         }
         public bool disable(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["disable"] && msgs.Count > 3 && ismod)
+            if (msgs.Count > 2 && ismod)
             {
                 if (CurUser.UserType == "op")
                 {

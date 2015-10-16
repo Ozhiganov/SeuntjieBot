@@ -38,7 +38,7 @@ namespace SeuntjieBot
                 tmp.UserType = (string)Reader["usertype"];
                 tmp.Address = !(Reader["address"] is DBNull)? (string)Reader["address"] : "";
                 tmp.Uid = (int)Reader["uid"];
-                tmp.LastActive = !(Reader["lastactive"] is DBNull)? (DateTime)Reader["lastactive"] : new DateTime();
+                tmp.LastSeen = !(Reader["lastactive"] is DBNull)? (DateTime)Reader["lastactive"] : new DateTime();
                 tmp.LastMessage = !(Reader["lastmessage"] is DBNull)? (string)Reader["lastmessage"] : "";
                 tmp.rain = !(Reader["rained"] is DBNull)? (string)Reader["rained"] : "";
                 tmp.times = !(Reader["times"] is DBNull) ? (string)Reader["times"] : "";

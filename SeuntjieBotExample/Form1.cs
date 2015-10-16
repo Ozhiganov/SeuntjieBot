@@ -43,7 +43,7 @@ namespace SeuntjieBotExample
         public static DateTime ToDateTime(string milliseconds)
         {
             DateTime tmpDate = DateTime.Parse("1970/01/01 00:00:00", System.Globalization.CultureInfo.InvariantCulture);
-            tmpDate = tmpDate.AddMilliseconds(long.Parse(milliseconds));
+            tmpDate = tmpDate.AddSeconds(long.Parse(milliseconds));
             tmpDate += (DateTime.Now - DateTime.UtcNow);
             return tmpDate;
         }
@@ -385,6 +385,11 @@ namespace SeuntjieBotExample
             if (tmp.State == WebSocketState.Open)
             {
                 seuntjie = new SeuntjieBot.SeuntjieBot();
+                seuntjie.MinRain = 0.0005m;
+                seuntjie.RainPercentage = 0.01m;
+                seuntjie.RainINterval = new TimeSpan(0, 10, 0);
+                seuntjie.LogOnly = true;
+                
                 seuntjie.ActiveUsersChanged += seuntjie_ActiveUsersChanged;
                 seuntjie.GetBalance += seuntjie_GetBalance;
                 seuntjie.SendMessage += seuntjie_SendMessage;
@@ -458,7 +463,7 @@ namespace SeuntjieBotExample
             
         }
 
-        
+        DateTime lastbalance = new DateTime();
         private void timer1_Tick(object sender, EventArgs e)
         {
             if (tmp != null)
@@ -468,6 +473,13 @@ namespace SeuntjieBotExample
                         tmp.Send("2");
                         lastmessage = DateTime.Now;
                     }
+            if (seuntjie!=null && (DateTime.Now - lastbalance).TotalSeconds>=30)
+            {
+                lastbalance = DateTime.Now;
+                string s1 = Client.GetStringAsync("ajax.php?a=get_balance").Result;
+                balance = double.Parse(s1.Replace("\"", ""), System.Globalization.NumberFormatInfo.InvariantInfo);
+
+            }
         }
 
     }

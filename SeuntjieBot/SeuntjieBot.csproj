@@ -58,6 +58,7 @@
     <Compile Include="Site.cs" />
     <Compile Include="SQLBASE.cs" />
     <Compile Include="User.cs" />
+    <Compile Include="Words.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
