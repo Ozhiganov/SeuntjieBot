@@ -26,7 +26,7 @@ namespace SeuntjieBot
         public DateTime LastActive { get; set; }
         public List<score> CommandScore { get; set; }
         public string LastMessage { get; set; }
-        public string[] MessageFor { get; set; }
+        public LateMessage[] MessageFor { get; set; }
         public List<score> Score { get; set; }
         public string rain { get; set; }
         public string times { get; set; }

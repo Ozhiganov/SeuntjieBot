@@ -54,6 +54,7 @@
     <Compile Include="MarketThingy.cs" />
     <Compile Include="MSSQL.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SentRain.cs" />
     <Compile Include="SeuntjieBot.cs" />
     <Compile Include="Site.cs" />
     <Compile Include="SQLBASE.cs" />

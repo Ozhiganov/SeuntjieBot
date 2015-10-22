@@ -32,7 +32,7 @@ namespace SeuntjieBotExample
             TimeSpan dt = DateTime.UtcNow - DateTime.Parse("1970/01/01 00:00:00", System.Globalization.CultureInfo.InvariantCulture);
             double mili = dt.TotalMilliseconds;
             return ((long)mili).ToString();
-
+            
         }
 
         /// <summary>
@@ -49,6 +49,7 @@ namespace SeuntjieBotExample
         }
         void connectSocket()
         {
+            
             //-1&sid=mDP2w-pcIQUxoaSfAANK
             HttpWebRequest
                             req = (HttpWebRequest)HttpWebRequest.Create("https://ws.magicaldice.com/socket.io/?EIO=3&transport=polling&t=" + CurrentDate() + "-0");
@@ -168,6 +169,7 @@ namespace SeuntjieBotExample
                         string msg = e.Message.Substring("42[\"chat\",".Length);
                         msg = msg.Substring(0, msg.LastIndexOf("]"));
                         msg = msg.Replace("\"to\":0,", "\"to\":null,");
+                        AddMessage(msg);
                         mdchat tmpChat = SeuntjieBot.SeuntjieBot.JsonDeserialize<mdchat>(msg);
                         if (tmpChat.type == "text" || tmpChat.type == "private")
                         {
@@ -179,6 +181,21 @@ namespace SeuntjieBotExample
                 }
             }
             //throw new NotImplementedException();
+        }
+
+        delegate void dAddMessage(string s);
+        void AddMessage(string Message)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new dAddMessage(AddMessage), Message);
+                return;
+            }
+            lstChat.Items.Insert(0, Message);
+            if (lstChat.Items.Count > 300)
+            {
+                lstChat.Items.RemoveAt(lstChat.Items.Count - 1);
+            }
         }
 
         void tmp_Closed(object sender, EventArgs e)
@@ -387,9 +404,9 @@ namespace SeuntjieBotExample
                 seuntjie = new SeuntjieBot.SeuntjieBot();
                 seuntjie.MinRain = 0.0005m;
                 seuntjie.RainPercentage = 0.01m;
-                seuntjie.RainINterval = new TimeSpan(0, 10, 0);
+                seuntjie.RainInterval = new TimeSpan(0, 10, 0);
                 seuntjie.LogOnly = true;
-                
+                seuntjie.RainScore = 5;
                 seuntjie.ActiveUsersChanged += seuntjie_ActiveUsersChanged;
                 seuntjie.GetBalance += seuntjie_GetBalance;
                 seuntjie.SendMessage += seuntjie_SendMessage;
@@ -455,12 +472,45 @@ namespace SeuntjieBotExample
 
         double seuntjie_GetBalance()
         {
+            if (InvokeRequired)
+            {
+                return (double)Invoke(new SeuntjieBot.SeuntjieBot.dGetBalance(seuntjie_GetBalance));
+            }
+            else
+            {
+                lblBalance.Text = balance.ToString("0.00000000");
+
+            }
             return balance;
         }
 
+        delegate void ActiveChanged(List<User> ActiveUsers);
+        void seuntjie_ActiveUsersChanged(List<User> ActiveUsers)
+        {
+            lbActive.Items.Clear();
+            lbEligible.Items.Clear();
+            foreach (User u in ActiveUsers)
+            {
+                if (u.getscore() >= seuntjie.RainScore)
+                {
+                    lbEligible.Items.Add(u.Username + "(" + u.Uid + ") <"+ u.getscore()+">");
+                }
+                else
+                {
+                    lbActive.Items.Add(u.Username + "(" + u.Uid + ") <" + u.getscore() + ">");
+                }
+            }
+        }
+        
         void seuntjie_ActiveUsersChanged(User[] ActiveUsers)
         {
-            
+            if (InvokeRequired)
+            {
+                User[] Users = ActiveUsers;
+                Invoke(new ActiveChanged(seuntjie_ActiveUsersChanged), Users.ToList<User>());
+                return;
+            }
+           
         }
 
         DateTime lastbalance = new DateTime();
@@ -480,6 +530,11 @@ namespace SeuntjieBotExample
                 balance = double.Parse(s1.Replace("\"", ""), System.Globalization.NumberFormatInfo.InvariantInfo);
 
             }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
         }
 
     }

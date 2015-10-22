@@ -6,11 +6,13 @@ using System.Threading.Tasks;
 
 namespace SeuntjieBot
 {
-    class LateMessage
+    public class LateMessage
     {
         public string Message { get; set; }
         public int FromUid { get; set; }
         public int ToUid { get; set; }
         public int id { get; set; }
+        public bool Sent { get; set; }
+        public bool pm { get; set; }
     }
 }

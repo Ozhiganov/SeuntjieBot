@@ -78,6 +78,12 @@ namespace SeuntjieBot
         /// </summary>
         /// <param name="ActiveUsers">List of active and eligible users</param>
         public delegate void dUpdateActive(User[] ActiveUsers);
+
+        /// <summary>
+        /// Delegate for CommandsUpdated event. Triggers if there are significant changes in the Commands list
+        /// </summary>
+        /// <param name="Commands">List of user commands</param>
+        public delegate void dCommandsUpdated(Command[] Commands);
         
         //events
         /// <summary>
@@ -112,10 +118,6 @@ namespace SeuntjieBot
         /// </summary>
         public bool LogOnly { get; set; }
 
-        /// <summary>
-        /// Determines whether raining on users is enabled or not
-        /// </summary>
-        public bool RainEnabled { get; set; }
 
         /// <summary>
         /// The percentage of the available balance the bot will rain when it rains, if larger than the MinRain value
@@ -130,8 +132,12 @@ namespace SeuntjieBot
         /// <summary>
         /// How often the bot should rain on users
         /// </summary>
-        public TimeSpan RainINterval { get; set; }
+        public TimeSpan RainInterval { get; set; }
 
+        /// <summary>
+        /// Determines the minimum chat activity a user must have in the raininterval period to be eligible for rain
+        /// </summary>
+        public int RainScore { get; set; }
         
         
 
@@ -168,27 +174,19 @@ namespace SeuntjieBot
             tmrRain = new Timer(tmrRainTick, null, 100,100);
             tmrUsers = new Timer(tmrUsersTick, null, 1000, 1000);
             tmrSend = new Timer(tmrSendTick, null, 10, 10);
-            tmrCurrency = new Timer(tmrCurrencyTick, null, 30000, 30000);
+            tmrCurrency = new Timer(tmrCurrencyTick, null, 0, 30000);
             LastSent = DateTime.Now;
-            RainINterval = new TimeSpan(0, 10, 0);
+            RainInterval = new TimeSpan(0, 10, 0);
             loadCommands();
             gettotalRains();
             CommandState.Add("balance", true);
             CommandState.Add("user", true);
-            //CommandState.Add("redlist", true);
-            //CommandState.Add("blacklist", true);
-            //CommandState.Add("status", true);
-            //CommandState.Add("title", true);
-            //CommandState.Add("note", true);
-            //CommandState.Add("usertype", true);
-            //CommandState.Add("halfmute", true);
             CommandState.Add("btc", true);
             CommandState.Add("convert", true);
-            //CommandState.Add("mute", true);
-            //CommandState.Add("unmute", true);
             CommandState.Add("rained", true);
             CommandState.Add("rain", false);
             CommandState.Add("last", true);
+            CommandState.Add("msg", true);
             CommandState.Add("bot", true);
 
             populateNegative();
@@ -229,6 +227,7 @@ namespace SeuntjieBot
             File.WriteAllText("commands.txt", s);
 
         }
+
 
         void InternalSendMessage(SendMessage Message)
         {
@@ -283,7 +282,8 @@ namespace SeuntjieBot
             if (CurUser.UserType.ToLower() == "scam" && !warned)
             {
                 // pm + string.Format(" λ WARNING! {0} is a suspected scammer! λ ", CurUser.Username)
-                InternalSendMessage(new SendMessage { Message=string.Format(" λ WARNING! {0} is a suspected scammer! λ ", CurUser.Username), Pm=false, ToUser=CurUser });
+                
+                MessageQueue.Enqueue(new SendMessage { Message=string.Format(" λ WARNING! {0} is a suspected scammer! λ ", CurUser.Username), Pm=false, ToUser=CurUser });
                 string[] tmp = { (chat.User), DateTime.Now.ToString() };
                 issued = true;
                 CurUser.Warning = DateTime.Now;
@@ -306,7 +306,7 @@ namespace SeuntjieBot
                     if (tooquick >= 2)
                     {
                         writelog("Too Quick", CurUser);
-                        InternalSendMessage(new SendMessage { Message = "Please wait a minute before making another request", Pm = true, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = "Please wait a minute before making another request", Pm = true, ToUser = CurUser });
                     }
 
                     else if (tooquick < 2 && msgs.Count >= 2)
@@ -317,7 +317,7 @@ namespace SeuntjieBot
                             if (msgs[1].ToLower() == (curom.sCommand.ToLower()) && curom.Enabled)
                             {
                                 if (!LogOnly)
-                                    InternalSendMessage(new SendMessage { Message = curom.Response, ToUser = CurUser, Pm = pm });
+                                    MessageQueue.Enqueue(new SendMessage { Message = curom.Response, ToUser = CurUser, Pm = pm });
                                 sent = true;
                                 break;
                             }
@@ -330,11 +330,11 @@ namespace SeuntjieBot
                                 if (true)
                                 {
                                     sent = true;
-                                    InternalSendMessage(new SendMessage { Message = Msg, Pm = pm, ToUser = CurUser });
+                                    MessageQueue.Enqueue(new SendMessage { Message = Msg, Pm = pm, ToUser = CurUser });
                                 }
                                 else
                                 {
-                                    InternalSendMessage(new SendMessage { Message = Msg, Pm = true, ToUser = CurUser });
+                                    MessageQueue.Enqueue(new SendMessage { Message = Msg, Pm = true, ToUser = CurUser });
                                     sent = true;
                                 }
                             }
@@ -342,9 +342,7 @@ namespace SeuntjieBot
                             {
                                 try
                                 {
-                                    Type thisType = this.GetType();
-                                    MethodInfo[] meths = thisType.GetMethods();
-                                    MethodInfo theMethod = thisType.GetMethod(msgs[1]);
+                                    MethodInfo theMethod = this.GetType().GetMethod(msgs[1], BindingFlags.NonPublic | BindingFlags.Instance);
                                     object[] Params = new object[] { chat, msgs, ismod, pm, CurUser };
                                     if (theMethod != null)
                                     {
@@ -360,7 +358,7 @@ namespace SeuntjieBot
                             {
                                 comm = true;
                                 sent = true;
-                                InternalSendMessage(new SendMessage { Message = CommandString(), ToUser = CurUser, Pm = true });
+                                MessageQueue.Enqueue(new SendMessage { Message = CommandString(), ToUser = CurUser, Pm = true });
                             }
                             
                         }
@@ -387,6 +385,10 @@ namespace SeuntjieBot
             if (CurUser.Listed<1)
             {
                 int score = (pm||chat.Message.Length<=2?0: (chat.Message.Length < 50) ? 1 : (chat.Message.Length < 100) ? 2 : 3);
+                if (sent || CurUser.getCommandscore()>=2)
+                {
+                    score = 0;
+                }
                 updateactivetime(CurUser, score);
             }
         }
@@ -498,12 +500,15 @@ namespace SeuntjieBot
                         Responses.Add("I'm confused");
                     }
                     if (Responses.Count>0)
-                        InternalSendMessage(new SendMessage { Message = Responses[r.Next(0, Responses.Count)].ToString() + " " + CurUser.Username, ToUser = CurUser, Pm = pm });
+                        MessageQueue.Enqueue(new SendMessage { Message = Responses[r.Next(0, Responses.Count)].ToString() + " " + CurUser.Username, ToUser = CurUser, Pm = pm });
                 }
             }
             return sent;
         }
         
+        /// <summary>
+        /// Populates the list of negative words to determine the response "severity"
+        /// </summary>
         void populateNegative()
         {
             Negatives.Add(new Words("cunt", 4, true, true, true));
@@ -575,6 +580,10 @@ namespace SeuntjieBot
             Negatives.Add(new Words("fucking", 4, true, false));
             Negatives.Add(new Words("hate", 4));
         }
+
+        /// <summary>
+        /// Populates the list of positive words to determine the response "severity"
+        /// </summary>
         void populatePositive()
         {
             Positives.Add(new Words("like", 4));
@@ -655,7 +664,16 @@ namespace SeuntjieBot
             return s;
         }
 
-        public bool balance(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        /// <summary>
+        /// Gets the balance from the site interface and responds in the chat with the applicable message
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool balance(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["balance"])
             {
@@ -676,7 +694,7 @@ namespace SeuntjieBot
                         int minutes = (int)(intervals * avgTime);
                         TimeSpan TimeLeft = new TimeSpan(0, minutes, 0);
 
-                        InternalSendMessage(new SendMessage { Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
                         return true;
                     }
                     else
@@ -693,7 +711,17 @@ namespace SeuntjieBot
             }
             return false;
         }
-        public bool user(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Responds with the details of said user
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool user(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["user"])
             {
@@ -720,7 +748,7 @@ namespace SeuntjieBot
                     if (tmp == null)
                     {
                         writelog("requested user: " + username + ". User not found", CurUser); 
-                        InternalSendMessage(new SendMessage { Message = "User not found.", ToUser = CurUser, Pm = pm });
+                        MessageQueue.Enqueue(new SendMessage { Message = "User not found.", ToUser = CurUser, Pm = pm });
                     }
                     else
                     {
@@ -741,7 +769,7 @@ namespace SeuntjieBot
                                 tmp.Uid);
                         writelog("requested user: " + username, CurUser);
                         message = " λ " + message + " λ ";
-                        InternalSendMessage(new SendMessage { Message = message, ToUser = CurUser, Pm = username.ToLower() != CurUser.Username.ToLower() ? pm : true });
+                        MessageQueue.Enqueue(new SendMessage { Message = message, ToUser = CurUser, Pm = username.ToLower() != CurUser.Username.ToLower() ? pm : true });
 
                         return true;
                     }
@@ -749,7 +777,17 @@ namespace SeuntjieBot
             }
             return false;
         }
-        public bool redlist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Adds a user to the redlist with a reason
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool redlist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -781,14 +819,24 @@ namespace SeuntjieBot
                     MSSQL.Instance().Redlist(tmp, reason);
 
 
-                    InternalSendMessage(new SendMessage { Message = string.Format("{0} has been redlisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been redlisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
                 
             }
             return false;
         }
-        public bool blacklist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Adds a user to the blacklist with a reason
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool blacklist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -820,14 +868,24 @@ namespace SeuntjieBot
                     //update to DB
                     MSSQL.Instance().BlackList(tmp, reason);
 
-                    InternalSendMessage(new SendMessage { Message = string.Format("{0} has been blacklisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been blacklisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
 
             }
             return false;
         }
-        public bool deredlist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Removes a user from the redlist
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool deredlist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -859,14 +917,24 @@ namespace SeuntjieBot
                     MSSQL.Instance().DeRedlist(tmp);
 
 
-                    InternalSendMessage(new SendMessage { Message = string.Format("{0} has been removed from the red list", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been removed from the red list", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
 
             }
             return false;
         }
-        public bool deblacklist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Removes a user from the blacklist
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool deblacklist(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -898,14 +966,24 @@ namespace SeuntjieBot
                     //update to DB
                     MSSQL.Instance().DeBlacklist(tmp);
 
-                    InternalSendMessage(new SendMessage { Message = string.Format("{0} has been removed from the blacklist", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been removed from the blacklist", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
 
             }
             return false;
         }
-        public bool status(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Gets and responds with the blacklist/redlist status and reason if applicable
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool status(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -934,13 +1012,23 @@ namespace SeuntjieBot
                         case 2: Message = "Blacklisted: " + tmp.GetBlackReason() + ". "; break;
                     }
 
-                    InternalSendMessage(new SendMessage { Message = Message, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = Message, Pm = pm, ToUser = CurUser });
                     return true;
                 }
             }
             return false;
         }
-        public bool address(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Sets the users btc/other address
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool address(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["address"])
             {
@@ -962,18 +1050,28 @@ namespace SeuntjieBot
 
                         CurUser.Address = msgs[2];
                         CurUser.updateuser();
-                        InternalSendMessage(new SendMessage { Message = "@" + CurUser.Username + " Updated", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = "@" + CurUser.Username + " Updated", Pm = pm, ToUser = CurUser });
                     }
                     else
                     {
-                        InternalSendMessage(new SendMessage { Message = "@" + CurUser.Username + " Invalid address. Try again in a minute", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = "@" + CurUser.Username + " Invalid address. Try again in a minute", Pm = pm, ToUser = CurUser });
                     }
                     return true;           
                 }
             }
             return false;
         }
-        public bool title(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Sets the title of the specified user
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool title(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["user"] && msgs.Count > 3 && ismod)
             {
@@ -996,13 +1094,23 @@ namespace SeuntjieBot
                 {
                     tmp.Title = title;
                     tmp.updateuser();
-                    InternalSendMessage(new SendMessage { Message="@"+tmp.Username+" updated", Pm=pm, ToUser=CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message="@"+tmp.Username+" updated", Pm=pm, ToUser=CurUser });
                     return true;
                 }
             }
             return false;
         }
-        public bool note(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Sets a note for the user if something is suspicious about the user
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool note(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["user"] && msgs.Count > 3 && ismod)
             {
@@ -1025,13 +1133,23 @@ namespace SeuntjieBot
                 {
                     tmp.Note = note;
                     tmp.updateuser();
-                    InternalSendMessage(new SendMessage { Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
                     return true;
                 }           
             }
             return false;
         }
-        public bool usertype(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Sets the usertype for the specified user. user, mod, admin, op, bot
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool usertype(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (msgs.Count > 3 && ismod)
             {
@@ -1060,36 +1178,66 @@ namespace SeuntjieBot
                     {
                         tmp.UserType = note;
                         tmp.updateuser();
-                        InternalSendMessage(new SendMessage { Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
                         return true;
                     }   
                 }
             }
             return false;
         }
-        public bool halfmute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Sets the bot to respond only to commands issued by mods/admins/operator
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool halfmute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["halfmute"] && ismod)
             {
                 if (ismod)
                 {
                     bhalfmute = true;
-                    InternalSendMessage(new SendMessage { Message = "Bot will now only respond to mods.", Pm = false, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = "Bot will now only respond to mods.", Pm = false, ToUser = CurUser });
                     return true;
                 }
             }
             return false;
         }
-        public bool btc(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Responds with the btc/usd price
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool btc(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["btc"])
             {
-                InternalSendMessage(new SendMessage { Message = "BTC/USD last trade price according to bitcoinaverage.com: " + mbtc.ToString("0.00"), Pm = pm, ToUser = CurUser });
+                MessageQueue.Enqueue(new SendMessage { Message = "BTC/USD last trade price according to bitcoinaverage.com: " + mbtc.ToString("0.00"), Pm = pm, ToUser = CurUser });
                 return true;
             }
             return false;
         }
-        public bool convert(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Performs the conversion between currencies detailed in the chat message and responds accordingly.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool convert(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["convert"])
             {
@@ -1105,7 +1253,7 @@ namespace SeuntjieBot
                     if (double.TryParse(amount, out iamount))
                     {
                         string s = Convert(from, to, iamount);
-                        InternalSendMessage(new SendMessage { Message = s, ToUser = CurUser, Pm = pm });
+                        MessageQueue.Enqueue(new SendMessage { Message = s, ToUser = CurUser, Pm = pm });
                         return true;
                     }
                 }
@@ -1117,24 +1265,44 @@ namespace SeuntjieBot
                     int i = GetName(msgs, 2, out from);
                     i = GetName(msgs, i, out to);
                     string s = Convert(from, to, 1);
-                    InternalSendMessage(new SendMessage { Message = s, ToUser = CurUser, Pm = pm });
+                    MessageQueue.Enqueue(new SendMessage { Message = s, ToUser = CurUser, Pm = pm });
                         
                     return true;
 
                 }
 
 
-                InternalSendMessage(new SendMessage { Message = "Convert help: !s convert [from currency] [to currency] (amount)   []=required, ()=optional", Pm = pm, ToUser = CurUser });
+                MessageQueue.Enqueue(new SendMessage { Message = "Convert help: !s convert [from currency] [to currency] (amount)   []=required, ()=optional", Pm = pm, ToUser = CurUser });
                 return true;
                 
             }
             return false;
         }
-        public bool cv(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Performs the conversion between currencies detailed in the chat message and responds accordingly.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool cv(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             return convert(chat, msgs, ismod, pm, CurUser);
         }
-        public bool mute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Sets the bot to log only, can only be updated by admin or operator
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool mute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -1143,7 +1311,17 @@ namespace SeuntjieBot
             }
             return false;
         }
-        public bool unmute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Sets the bot to respond. Mods can only remove from halfmute.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool unmute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -1152,22 +1330,42 @@ namespace SeuntjieBot
                 if (ismod)
                 {
                     bhalfmute = false;
-                    InternalSendMessage(new SendMessage { Message = "Bot responding to all.", Pm = false, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = "Bot responding to all.", Pm = false, ToUser = CurUser });
                     return true;
                 }
             }
             return false;
         }
-        public bool rained(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Returns the total amount rained by the bot, or if a username/uid is present, returns the total rained for said user.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool rained(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["rained"])
             {
-                InternalSendMessage(new SendMessage  { Message=string.Format("Times rained: {0}, Total Rained: {1:0.00000000}"), ToUser=CurUser, Pm=pm });
+                MessageQueue.Enqueue(new SendMessage  { Message=string.Format("Times rained: {0}, Total Rained: {1:0.00000000}"), ToUser=CurUser, Pm=pm });
                 return true;
             }
             return false;
         }
-        public bool rain(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Forces rain if user is admin/op or if rainmode is user based and user has balance
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool rain(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (ismod)
             {
@@ -1179,7 +1377,17 @@ namespace SeuntjieBot
             }
             return false;
         }
-        public bool last(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Checks when the specified user was last online and responds accordingly.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool last(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["last"])
             {
@@ -1200,7 +1408,7 @@ namespace SeuntjieBot
                     DateTime tmpDate = tmp.LastSeen;
                     if (tmp.Uid == CurUser.Uid)
                     {
-                        InternalSendMessage(new SendMessage { Message = "You're very forgetfull aren't you " + user + "?", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = "You're very forgetfull aren't you " + user + "?", Pm = pm, ToUser = CurUser });
                         return true;
                     }
                     else
@@ -1217,7 +1425,7 @@ namespace SeuntjieBot
                             s = "u:" + user + " was last seen " + (ago.TotalDays >= 1 ? ago.Days + " Days, " : "") + (ago.TotalHours > 0 ? ago.Hours + " hours, " : "") + (ago.TotalMinutes > 0 ? ago.Minutes + " Minutes " : "") + "ago, at " + tmpDate.ToString("yyyy/MM/dd HH:mm") + " UTC";
                             //s = string.Format("U:{0} was last seen {2} hours and {3} minutes ago at {1} GMT", user, tmpDate, (int)ago.TotalHours, ago.Minutes);
                         }
-                        InternalSendMessage(new SendMessage { Message = s, Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = s, Pm = pm, ToUser = CurUser });
                         return true;
                         
                     }
@@ -1225,18 +1433,38 @@ namespace SeuntjieBot
                 }
                 else
                 {
-                    InternalSendMessage(new SendMessage { Message = string.Format("I haven't seen U:{0} yet", user), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("I haven't seen U:{0} yet", user), Pm = pm, ToUser = CurUser });
                     return true;
                 }
                 
             }
             return false;
         }
-        public bool seen(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Checks when the specified user was last online and responds accordingly.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool seen(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             return last(chat, msgs, ismod, pm, CurUser);
         }
-        public bool enable(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Enables the command detailed in the chat message if the user is the operator of the bot
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool enable(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (msgs.Count > 2 && ismod)
             {
@@ -1263,7 +1491,17 @@ namespace SeuntjieBot
             }
             return false;
         }
-        public bool disable(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+
+        /// <summary>
+        /// Disables command detailed in chat message if user is the operator of the bot.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool disable(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (msgs.Count > 2 && ismod)
             {
@@ -1290,6 +1528,53 @@ namespace SeuntjieBot
             }
             return false;
         }
+
+        /// <summary>
+        /// Saves a message for a certain user to be sent to him/her when he/she comes online again.
+        /// </summary>
+        /// <param name="chat">Chat object as received from the site</param>
+        /// <param name="msgs">String array of different words of the message</param>
+        /// <param name="ismod">Indicates whether the sender is a moderator or normal user</param>
+        /// <param name="pm">Indicates whether the sent message should be in private</param>
+        /// <param name="CurUser">The user object of the suser that sent the message</param>
+        /// <returns>boolean value showing whether the bot sent a response or not</returns>
+        private bool msg(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            if (msgs.Count > 3)
+            {
+                string username = "";
+                int start = GetName(msgs, 2, out username);
+                string Message = BuildString(msgs, start);
+
+                //get user
+                User To = null;
+                int ID = 0;
+                if (int.TryParse(username, out ID))
+                {
+                    To = User.FindUser(ID);
+                }
+                else
+                {
+                    To = User.FindUser(username);
+                }
+                if (To != null)
+                {
+                    //add message to DB
+                    LateMessage Msg = new LateMessage { FromUid = (int)CurUser.Uid, id = -1, Message = Message, pm = pm, Sent = false, ToUid = (int)To.Uid };
+
+                    MessageQueue.Enqueue(new SendMessage { Message="Saved message for " + To.Username, Pm=pm, ToUser=CurUser });
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Performs the logic for converting to and from different currencies
+        /// </summary>
+        /// <param name="from">The currency to convert from</param>
+        /// <param name="to">The currency to convert to</param>
+        /// <param name="iamount">The amount of "from currency" to convert to</param>
+        /// <returns>Converted amount of to currency</returns>
         private string Convert(string from, string to, double iamount)
         {
 
@@ -1363,9 +1648,11 @@ namespace SeuntjieBot
 
 
         #region Rainy Things
+        public RainType RainMode { get; set; }
+    
         int raincounter = 0;
         DateTime LastRain = DateTime.Now;
-        int MinScoreRain = 5;
+        
         int times = 0;
         decimal total = 0;
 
@@ -1379,7 +1666,7 @@ namespace SeuntjieBot
             List<User> ValidUsers = new List<User>();
             foreach (User U in activeusers)
             {
-                if (U.getscore() >MinScoreRain)
+                if (U.getscore() >RainScore)
                 {
                     ValidUsers.Add(U);
                 }
@@ -1406,12 +1693,12 @@ namespace SeuntjieBot
         void tmrRainTick(object State)
         {
             raincounter++;
-            if ((DateTime.Now - LastRain).TotalSeconds > RainINterval.TotalSeconds)
+            if ((DateTime.Now - LastRain).TotalSeconds > RainInterval.TotalSeconds)
             {
                 LastRain = DateTime.Now;
                 raincounter = 0;
                 int count = 0;
-                if (RainEnabled)
+                if (CommandState["rain"])
                 {
                     foreach (User u in activeusers)
                     {
@@ -1486,6 +1773,16 @@ namespace SeuntjieBot
             total = (decimal)rians[0];
             times = (int)rians[1];
         }
+
+        /// <summary>
+        /// Should be called when a tip is received from a user if user based rains are used
+        /// </summary>
+        /// <param name="Amount">Amount Received in Btc</param>
+        /// <param name="Sender">The sending user. Leave null if unkown.</param>
+        public void ReceiveTip(double Amount, User Sender)
+        {
+
+        }
         #endregion
 
         /// <summary>
@@ -1508,12 +1805,13 @@ namespace SeuntjieBot
         /// <param name="State">Unused</param>
         void tmrUsersTick(object State)
         {
-            
+            bool changed = false;
             for (int i = 0; i < activeusers.Count; i++)
             {
                 if ((DateTime.Now - activeusers[i].LastActive).Minutes >= 20)
                 {
                     activeusers.RemoveAt(i--);
+                    changed = true;
                 }
                 else
                 {
@@ -1521,7 +1819,13 @@ namespace SeuntjieBot
                     {
                         if ((DateTime.Now - activeusers[i].Score[j].time).Minutes >= 20)
                         {
+                            int tmpScore = activeusers[i].getscore();
                             activeusers[i].Score.RemoveAt(j--);
+                            int tmpScore2 = activeusers[i].getscore();
+                            if ((tmpScore>= RainScore && tmpScore2< RainScore )||(tmpScore<RainScore && tmpScore2>=RainScore) )
+                            {
+                                changed = true;
+                            }
                         }
                         else
                             break;
@@ -1537,6 +1841,10 @@ namespace SeuntjieBot
                     }
                 }
 
+            }
+            if (changed && ActiveUsersChanged!=null)
+            {
+                ActiveUsersChanged(activeusers.ToArray());
             }
 
         }
@@ -1574,7 +1882,8 @@ namespace SeuntjieBot
             }
         }
 
-               
+        int activecount = 0;
+        int elligiblecount = 0;       
         /// <summary>
         /// updates the last time a user was active in the chat.
         /// updates user score
@@ -1583,14 +1892,22 @@ namespace SeuntjieBot
         /// <param name="score"></param>
         void updateactivetime(User curuser, int score)
         {
+            bool Changed = true;
             bool found = false;
             foreach (User u in activeusers)
             {
-                if (u == curuser)
+                if (u.Equals(curuser))
                 {
                     found = true;
+                    int tmpScore = u.getscore();
                     u.Score.Add(new score(score, DateTime.Now));
                     u.LastActive = DateTime.Now;
+                    int tmpScore2 = u.getscore();
+                    if ((tmpScore >= RainScore && tmpScore2 < RainScore) || (tmpScore < RainScore && tmpScore2 >= RainScore))
+                    {
+                        Changed = true;
+                    }
+                    
                 }
             }
             if (!found)
@@ -1602,18 +1919,31 @@ namespace SeuntjieBot
                 tmp.Score.Add(new score(score, DateTime.Now));
                 tmp.LastActive = DateTime.Now;
                 activeusers.Add(tmp);
-
+                Changed = true;
+            }
+            if (Changed && ActiveUsersChanged!=null)
+            {
+                ActiveUsersChanged(activeusers.ToArray());
             }
         }
         #endregion
 
         #region Currency Convertions
+        /// <summary>
+        /// Triggers fetching currency data in asynchronous thread
+        /// </summary>
+        /// <param name="State">Unused</param>
         void tmrCurrencyTick(object State)
         {
             Thread t = new Thread(new ThreadStart(getprices));
             t.Start();
         }
 
+        /// <summary>
+        /// Returns the last trade price of an altcoin or fiat currency vs bitcoin
+        /// </summary>
+        /// <param name="Currency">Name of the currency to get the price for</param>
+        /// <returns>Last trade price</returns>
         double getCurrencyValue(string Currency)
         {
             try
@@ -1643,6 +1973,11 @@ namespace SeuntjieBot
             return -1;
         }
 
+        /// <summary>
+        /// Creates a string with the ask and buy prices for Currency altcoin
+        /// </summary>
+        /// <param name="Currency">currency name</param>
+        /// <returns>Message ready string of the altcoin prices</returns>
         string GetCurrency(string Currency)
         {
             try
@@ -1663,6 +1998,9 @@ namespace SeuntjieBot
         poloniexMarket Currencies;
         List<YahooPair> Fiat = new List<YahooPair>();
         private decimal mbtc;
+        /// <summary>
+        /// Get the prices for btc/usd, btc/altcoin and usd/fiat from exchanges to be used in the convert command
+        /// </summary>
         void getprices()
         {
 
