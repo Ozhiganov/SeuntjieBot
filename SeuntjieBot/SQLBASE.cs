@@ -25,7 +25,22 @@ namespace SeuntjieBot
         public abstract int GetUserStatus(User GetFor);
         public abstract string GetBlackReasonForUser(User GetFor);
         public abstract string GetRedReasonForUser(User GetFor);
-        public abstract string[] GetMessagesForUser(User ToGet);
+        public abstract LateMessage[] GetMessagesForUser(User ToGet);
+        public abstract bool AddMessageForUser(LateMessage msg);
+        public abstract bool SentMessageForUser(LateMessage msg);
+        public LateMessage MsgParser(IDataReader Reader)
+        {
+            LateMessage tmp = new LateMessage { };
+            tmp.FromUid = (int)Reader["msg_from"];
+            tmp.id = (int)Reader["id"];
+            tmp.ToUid = (int)Reader["msg_for"];
+            tmp.Message = (string)Reader["msg"];
+            tmp.pm = (bool)Reader["pm"];
+            tmp.Sent = (bool)Reader["sent"];
+            tmp.MessageTime = (DateTime)Reader["msg_time"];
+            
+            return tmp;
+        }
         
         public User UserParser(System.Data.IDataReader Reader)
         {
@@ -43,7 +58,7 @@ namespace SeuntjieBot
                 tmp.rain = !(Reader["rained"] is DBNull)? (string)Reader["rained"] : "";
                 tmp.times = !(Reader["times"] is DBNull) ? (string)Reader["times"] : "";
                 tmp.Listed = GetUserStatus(tmp);
-                //tmp.MessageFor = GetMessagesForUser(tmp);
+                tmp.MessageFor = GetMessagesForUser(tmp);
                 return tmp;
             }
             catch

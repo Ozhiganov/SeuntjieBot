@@ -228,7 +228,10 @@ namespace SeuntjieBot
 
         }
 
-
+        /// <summary>
+        /// Checks whether the bot is muted or not and then sends the chat message accordingly. Logs all responses, muted or no.
+        /// </summary>
+        /// <param name="Message">The chat message to be sent and the user information.</param>
         void InternalSendMessage(SendMessage Message)
         {
             writelog(Message.Message, Message.ToUser);
@@ -265,6 +268,13 @@ namespace SeuntjieBot
                 CurUser = User.FindUser(chat.User);
                 if (CurUser == null)
                 return;
+            }
+            foreach (LateMessage msg in CurUser.MessageFor)
+            {
+                User From = User.FindUser(msg.FromUid);
+                User To = User.FindUser(msg.ToUid);
+                MessageQueue.Enqueue(new SendMessage { Message = string.Format("{4} you have a message from {1}:{0} at {2}: {3}", From.Username, From.Uid, msg.MessageTime, msg.Message, To.Username ), Pm = msg.pm, ToUser = User.FindUser(msg.ToUid) });
+                SQLBASE.Instance().SentMessageForUser(msg);
             }
             if (activeusers.Contains(CurUser))
             {
@@ -412,7 +422,20 @@ namespace SeuntjieBot
             {
 
                 //check commands like is around, roll a dice, etc etc.
-
+                if (chat.Message.ToLower().Contains("roll some dice")||chat.Message.ToLower().Contains("roll the dice"))
+                {
+                    int Num = r.Next(1, 21);
+                    sent = true;
+                    MessageQueue.Enqueue(new SendMessage { Message=CurUser.Username+" rolled a "+Num, Pm=pm, ToUser=CurUser });
+                }
+                if ((chat.Message.ToLower().EndsWith("around bot") || chat.Message.ToLower().EndsWith("around seuntjiebot")) && !sent && Msgs.Length >= 4)
+                {
+                    string name = "";
+                    GetName(Msgs.ToList<string>(), 1, out name);
+                    chat.Message = "!s seen "+name;
+                    sent = seen(chat, chat.Message.Split(' ').ToList<string>(), CurUser.UserType == "mod" || CurUser.UserType == "admin" || CurUser.UserType == "op", pm, CurUser);
+                } 
+                
                 //respond negative/positive
                 if (!sent)
                 {
@@ -1367,6 +1390,10 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool rain(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
+            if (RainMode == RainType.combination || RainMode == RainType.user)
+            {
+                
+            }
             if (ismod)
             {
                 if (CurUser.UserType == "admin" || CurUser.UserType.ToLower() == "op")
@@ -1375,6 +1402,7 @@ namespace SeuntjieBot
                     return true;
                 }
             }
+            
             return false;
         }
 
@@ -1560,9 +1588,10 @@ namespace SeuntjieBot
                 if (To != null)
                 {
                     //add message to DB
-                    LateMessage Msg = new LateMessage { FromUid = (int)CurUser.Uid, id = -1, Message = Message, pm = pm, Sent = false, ToUid = (int)To.Uid };
-
+                    LateMessage Msg = new LateMessage { FromUid = (int)CurUser.Uid, id = -1, Message = Message, pm = pm, Sent = false, ToUid = (int)To.Uid, MessageTime= chat.Time };
+                    SQLBASE.Instance().AddMessageForUser(Msg);
                     MessageQueue.Enqueue(new SendMessage { Message="Saved message for " + To.Username, Pm=pm, ToUser=CurUser });
+                    return true;
                 }
             }
             return false;
@@ -1648,8 +1677,15 @@ namespace SeuntjieBot
 
 
         #region Rainy Things
+        /// <summary>
+        /// The mode rains are processed as
+        /// </summary>
         public RainType RainMode { get; set; }
-    
+
+        /// <summary>
+        /// The bot's own ID
+        /// </summary>
+        public int OwnID { get; set; }
         int raincounter = 0;
         DateTime LastRain = DateTime.Now;
         
@@ -1698,7 +1734,7 @@ namespace SeuntjieBot
                 LastRain = DateTime.Now;
                 raincounter = 0;
                 int count = 0;
-                if (CommandState["rain"])
+                if (CommandState["rain"] && (RainMode == RainType.combination || RainMode == RainType.natural))
                 {
                     foreach (User u in activeusers)
                     {
@@ -1794,7 +1830,8 @@ namespace SeuntjieBot
             if ((DateTime.Now - LastSent).TotalMilliseconds>=1000 && MessageQueue.Count>0)
             {
                 if (SendMessage!=null)
-                    SendMessage(MessageQueue.Dequeue());
+                    if (!LogOnly)
+                        SendMessage(MessageQueue.Dequeue());
             }
         }
 

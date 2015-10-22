@@ -402,6 +402,7 @@ namespace SeuntjieBotExample
             if (tmp.State == WebSocketState.Open)
             {
                 seuntjie = new SeuntjieBot.SeuntjieBot();
+                seuntjie.OwnID = 1261;
                 seuntjie.MinRain = 0.0005m;
                 seuntjie.RainPercentage = 0.01m;
                 seuntjie.RainInterval = new TimeSpan(0, 10, 0);

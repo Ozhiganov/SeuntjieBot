@@ -354,9 +354,29 @@ namespace SeuntjieBot
             return status;
         }
 
-        public override string[] GetMessagesForUser(User ToGet)
+        public override LateMessage[] GetMessagesForUser(User ToGet)
         {
-            throw new NotImplementedException();
+            List<LateMessage> tmp = new List<LateMessage>();
+            SqlConnection sqcon = GetCon();
+            try
+            {
+                sqcon.Open();
+                SqlCommand Command = new SqlCommand("GetLateMessage", sqcon);
+                Command.CommandType = System.Data.CommandType.StoredProcedure;
+                Command.Parameters.AddWithValue("uid", ToGet.Uid);
+
+                SqlDataReader Reader = Command.ExecuteReader();
+                if (Reader.Read())
+                {
+                    tmp.Add(MsgParser(Reader));
+                }
+            }
+            catch
+            {
+
+            }
+            sqcon.Close();
+            return tmp.ToArray();
         }
 
         public override string GetBlackReasonForUser(User GetFor)
@@ -407,6 +427,53 @@ namespace SeuntjieBot
             }
             sqcon.Close();
             return tmp;
+        }
+
+        public override bool AddMessageForUser(LateMessage msg)
+        {
+            int tmp = 0;
+            SqlConnection sqcon = GetCon();
+            try
+            {
+                sqcon.Open();
+                SqlCommand Command = new SqlCommand("addLateMessage", sqcon);
+                Command.CommandType = System.Data.CommandType.StoredProcedure;
+                Command.Parameters.AddWithValue("uid", msg.FromUid);
+                Command.Parameters.AddWithValue("toID", msg.ToUid);
+                Command.Parameters.AddWithValue("message", msg.Message);
+                Command.Parameters.AddWithValue("pm", msg.pm?1:0);
+                Command.Parameters.AddWithValue("time", msg.MessageTime);
+
+                tmp = Command.ExecuteNonQuery();
+            }
+            catch
+            {
+
+            }
+            sqcon.Close();
+            return tmp!=0;
+        }
+
+        public override bool SentMessageForUser(LateMessage msg)
+        {
+            int tmp = 0;
+            SqlConnection sqcon = GetCon();
+            try
+            {
+                sqcon.Open();
+                SqlCommand Command = new SqlCommand("MessageSent", sqcon);
+                Command.CommandType = System.Data.CommandType.StoredProcedure;
+                Command.Parameters.AddWithValue("id", msg.id);
+                
+
+                tmp = Command.ExecuteNonQuery();
+            }
+            catch
+            {
+
+            }
+            sqcon.Close();
+            return tmp != 0;
         }
     }
 }

@@ -14,5 +14,7 @@ namespace SeuntjieBot
         public int id { get; set; }
         public bool Sent { get; set; }
         public bool pm { get; set; }
+        public DateTime MessageTime { get; set; }
+        
     }
 }
