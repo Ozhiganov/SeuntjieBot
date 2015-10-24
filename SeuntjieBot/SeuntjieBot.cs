@@ -83,8 +83,8 @@ namespace SeuntjieBot
         /// Delegate for CommandsUpdated event. Triggers if there are significant changes in the Commands list
         /// </summary>
         /// <param name="Commands">List of user commands</param>
-        public delegate void dCommandsUpdated(Command[] Commands);
-        
+        public delegate void dCommandsUpdated(Command[] Commands);        
+
         //events
         /// <summary>
         /// Triggers when SeuntjieBot has to send a chat message
@@ -106,6 +106,10 @@ namespace SeuntjieBot
         /// </summary>
         public event dUpdateActive ActiveUsersChanged;
 
+        /// <summary>
+        /// Triggers when commands are loaded or when a command is enabled/disabled
+        /// </summary>
+        public event dCommandsUpdated CommandsUpdated;
 
         //properties
         /// <summary>
@@ -155,15 +159,18 @@ namespace SeuntjieBot
 
 
         //constructors
-        public SeuntjieBot()
+        public SeuntjieBot(int OwnId)
         {
+            Initialize();
             LogOnly = false;
-            Initialize();
+            this.OwnID = OwnId;
         }
-        public SeuntjieBot(bool LogOnly)
+        public SeuntjieBot(int OwnId, bool LogOnly)
         {
-            this.LogOnly = LogOnly;
+            
             Initialize();
+            this.LogOnly = LogOnly;
+            this.OwnID = OwnId;
         }
 
         /// <summary>
@@ -210,6 +217,7 @@ namespace SeuntjieBot
                         string[] tmp = sr.ReadLine().Split('|');
                         Commands.Add(new Command(tmp[0], tmp[1], tmp[2]));
                     }
+                    IntCommandsUpdated();
                 }
             }
         }
@@ -228,16 +236,6 @@ namespace SeuntjieBot
 
         }
 
-        /// <summary>
-        /// Checks whether the bot is muted or not and then sends the chat message accordingly. Logs all responses, muted or no.
-        /// </summary>
-        /// <param name="Message">The chat message to be sent and the user information.</param>
-        void InternalSendMessage(SendMessage Message)
-        {
-            writelog(Message.Message, Message.ToUser);
-            if (!LogOnly && SendMessage != null)
-                SendMessage(Message);
-        }
 
         /// <summary>
         /// responds to mods and admins only
@@ -702,28 +700,43 @@ namespace SeuntjieBot
             {
                 try
                 {
-                    if (GetBalance != null)
+                    if (RainMode == RainType.user)
                     {
-                        decimal bal = (decimal)GetBalance();
-                        decimal avgTime = 10m;//getAvgTime();
-                        decimal fraction = (bal / RainPercentage);
-                        decimal intervals = (decimal)(Math.Log((double)fraction) / Math.Log((double)(1m / 0.999m)));
-                        intervals = Math.Ceiling(intervals);
-                        intervals += (0.1m / 0.0001m);
-
-                        if (bal < 0.1m)
-                            intervals = Math.Floor(bal / MinRain);
-
-                        int minutes = (int)(intervals * avgTime);
-                        TimeSpan TimeLeft = new TimeSpan(0, minutes, 0);
-
-                        MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance for {0}: {1:0.00000000}.", CurUser.Username , CurUser.balance), Pm = true, ToUser = CurUser });
                         return true;
                     }
                     else
-                    {
-                        return false;
+                    { 
+                        if (GetBalance != null)
+                        {
+                            decimal bal = ((decimal)GetBalance())/SQLBASE.Instance().getTotalUsersBalance();
+                            decimal avgTime = 10m;//getAvgTime();
+                            decimal fraction = (bal / RainPercentage);
+                            decimal intervals = (decimal)(Math.Log((double)fraction) / Math.Log((double)(1m / 0.999m)));
+                            intervals = Math.Ceiling(intervals);
+                            intervals += (0.1m / 0.0001m);
+
+                            if (bal < 0.1m)
+                                intervals = Math.Floor(bal / MinRain);
+
+                            int minutes = (int)(intervals * avgTime);
+                            TimeSpan TimeLeft = new TimeSpan(0, minutes, 0);
+                            if (RainMode == RainType.combination)
+                            {
+                                MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance for {0}: {1:0.00000000}. Rainjar balance: {5:0.00000000}. Approximately {2} days, {3} hours and {4} minutes", CurUser.Username, CurUser.balance, TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = true, ToUser = CurUser });
+                            }
+                            else
+                            {
+                                MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
+                            }
+                            return true;
+                        }
+                        else
+                        {
+                            return false;
+                        }
                     }
+                    
 
                 }
                 catch (Exception e)
@@ -787,8 +800,8 @@ namespace SeuntjieBot
                             tmp.Username,
                             (!string.IsNullOrWhiteSpace(tmp.Address) ? tmp.Address : "NA"),
                             ((tmp.UserType != "user") ? tmp.UserType : ""),
-                            tmp.times == "" ? "0" : tmp.times,
-                                tmp.rain == "" ? "0" : tmp.rain,
+                            tmp.times == 0 ? 0 : tmp.times,
+                                tmp.rain == 0 ? 0 : tmp.rain,
                                 tmp.Uid);
                         writelog("requested user: " + username, CurUser);
                         message = " λ " + message + " λ ";
@@ -1392,7 +1405,53 @@ namespace SeuntjieBot
         {
             if (RainMode == RainType.combination || RainMode == RainType.user)
             {
-                
+                string number = "";
+                int start = GetName(msgs, 2, out number);
+                string amount = "";
+                start = GetName(msgs, start, out amount);
+                decimal Amount = 0;
+                decimal Number = 0;
+                if (decimal.TryParse(amount, out Amount))
+                {
+                    if (number.ToLower() == "nat" || number.ToLower() == "natural")
+                    {
+                        //reduce user balance by amount, effectively adding it to the rain pool
+                        if ((decimal)CurUser.balance>Amount)
+                        {
+                            SQLBASE.Instance().ReduceUserBalance(CurUser.Uid, Amount);
+                            MessageQueue.Enqueue(new SendMessage { Message = "Added " + Amount + " to natural rain clouds.", Pm = pm, ToUser = CurUser });
+                            return true;
+                        }
+                        else
+                        {
+                            MessageQueue.Enqueue(new SendMessage { Message = "Insufficient balance: " + CurUser.balance, Pm = pm, ToUser = CurUser });
+                            return true;
+                        }
+                    }
+                    else if (decimal.TryParse(number, out Number))
+                    {
+                        if ((decimal)CurUser.balance >= Number*Amount)
+                        {
+                            Rain(true, (int)Number, Amount, CurUser);
+                            return true;
+                        }
+                        else
+                        {
+                            MessageQueue.Enqueue(new SendMessage { Message = "Insufficient balance: " + CurUser.balance, Pm = pm, ToUser = CurUser });
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        MessageQueue.Enqueue(new SendMessage { Message="Invalid Number of users! "+Number, Pm=pm, ToUser=CurUser });
+                        return true;
+                    }
+                }
+                else
+                {
+                    MessageQueue.Enqueue(new SendMessage { Message = "Invalid rain amount! " +amount, Pm = pm, ToUser = CurUser });
+                    return true;
+                }
             }
             if (ismod)
             {
@@ -1507,17 +1566,36 @@ namespace SeuntjieBot
                         if (username == c.sCommand)
                         {
                             c.Enabled = true;
+                            IntCommandsUpdated();
+                                
                             return false;
                         }
                     }
                     if (CommandState.ContainsKey(username))
                     {
                         CommandState[username] = true;
+                        IntCommandsUpdated();
                         return false;
                     }
                 }
             }
             return false;
+        }
+
+        void IntCommandsUpdated()
+        {
+            if (CommandsUpdated != null)
+            {
+                Command[] tmpComs = new Command[this.Commands.Count];
+                List<Command> Commands = new List<Command>();
+                this.Commands.CopyTo(tmpComs);
+                Commands = tmpComs.ToList();
+                foreach (KeyValuePair<string, bool> x in CommandState)
+                {
+                    Commands.Add(new Command(x.Key, "", (x.Value ? "1" : "0")));
+                }
+                CommandsUpdated(Commands.ToArray());
+            }
         }
 
         /// <summary>
@@ -1675,6 +1753,28 @@ namespace SeuntjieBot
 
         #endregion
 
+        public void UpdateCommand(string CommandName, bool Enabled)
+        {
+            bool found = false;
+            foreach (Command c in Commands)
+            {
+                if (c.sCommand == CommandName)
+                {
+                    c.Enabled = Enabled;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                if (CommandState.ContainsKey(CommandName))
+                    CommandState[CommandName] = Enabled;
+            }
+            SaveCommands();
+            IntCommandsUpdated();
+
+        }
+
 
         #region Rainy Things
         /// <summary>
@@ -1750,36 +1850,57 @@ namespace SeuntjieBot
             
         }
 
+
+        public void Rain(bool Forced)
+        {
+            if (GetBalance != null)
+            {
+                Rain(Forced, 1, SetRainAmount((decimal)GetBalance() ), User.FindUser( OwnID ));
+            }
+            
+        }
         /// <summary>
         /// Select usrs, determine amount and iniate the rain command for the site handler. Also logs rain in DB
         /// </summary>
         /// <param name="Forced">Whether the rain is forced by the operator/admin/mod using a command or from site handler. True=forced, false=natural rain</param>
-        public void Rain(bool Forced)
+        public void Rain(bool Forced, int NumUsers, decimal AmountPerUser, User Initiator)
         {
+            
             if (GetBalance != null && SendRain!=null)
             {
-                decimal balance = (decimal)GetBalance();
-                User[] userstorain = getrandomids(1);
-                if (Forced)
+                decimal balance = 0;
+                decimal SiteBalance = (decimal)GetBalance();
+                if (Forced && (RainMode == RainType.combination || RainMode == RainType.user))
                 {
-                    userstorain = new User[1];
-                    userstorain[0] = activeusers[r.Next(0, activeusers.Count)];
+                    balance = (decimal)Initiator.balance;
                 }
-                decimal rainAmount = SetRainAmount(balance);
-
-                if (balance > rainAmount && userstorain.Length > 0)
+                else if (!Forced && (RainMode == RainType.natural || RainMode== RainType.combination))
                 {
-                    writelog("Rained " + rainAmount.ToString("0.0000") + " to " + userstorain[0], User.FindUser("seuntjie"));
+
+                    balance = SiteBalance - SQLBASE.Instance().getTotalUsersBalance();
+                }
+                else
+                {
+                    return;
+                }
+                
+                User[] userstorain = getrandomids(NumUsers);
+
+                if (SiteBalance > AmountPerUser * (decimal)userstorain.Length && balance > AmountPerUser * (decimal)userstorain.Length && userstorain.Length > 0)
+                {
+                    writelog("Rained " + AmountPerUser.ToString("0.0000") + " to " + userstorain[0], User.FindUser("seuntjie"));
                     if (Forced)
                     {
                         writelog("Rained Forced by click", User.FindUser("seuntjie"));
                     }
-                    string tx = "";
-                    if (SendRain(userstorain[0], (double)rainAmount))
+                    
+                    foreach (User u in userstorain)
                     {
-                        MSSQL.Instance().RainAdd((double)rainAmount, (int)userstorain[0].Uid, DateTime.Now);
-                        MessageQueue.Enqueue(new SendMessage { Message = string.Format("Congratulations {0}, {1:0.00000} rain coming your way", userstorain[0].Username, rainAmount), Pm = false, ToUser = userstorain[0] });
-                        
+                        if (SendRain(u, (double)AmountPerUser))
+                        {
+                            MSSQL.Instance().RainAdd((double)AmountPerUser, (int)u.Uid, DateTime.Now, (int)Initiator.Uid, Forced);
+                            MessageQueue.Enqueue(new SendMessage { Message = string.Format("Congratulations {0}, {1:0.00000} rain coming your way", u.Username, AmountPerUser), Pm = false, ToUser = u });
+                        }
                     }
                 }
                 gettotalRains();
@@ -1813,11 +1934,42 @@ namespace SeuntjieBot
         /// <summary>
         /// Should be called when a tip is received from a user if user based rains are used
         /// </summary>
-        /// <param name="Amount">Amount Received in Btc</param>
-        /// <param name="Sender">The sending user. Leave null if unkown.</param>
-        public void ReceiveTip(double Amount, User Sender)
+        /// <param name="Amount">double Amount in btc of tip</param>
+        /// <param name="username">Username of sending user</param>
+        public void ReceiveTip(double Amount, string username)
         {
-
+            if (RainMode == RainType.user || RainMode == RainType.combination)
+            {
+                User Sender = User.FindUser(username);
+                if (Sender != null)
+                {
+                    SQLBASE.Instance().ReceivedTip(Sender.Uid, Amount, DateTime.Now);
+                }
+                else
+                {
+                    int id = 0;
+                    if (int.TryParse(username, out id))
+                    {
+                        ReceiveTip(Amount, id);
+                    }
+                }
+            }
+        }
+        /// <summary>
+        /// Should be called when a tip is received from a user if user based rains are used
+        /// </summary>
+        /// <param name="Amount">double Amount in btc of tip</param>
+        /// <param name="UID">int User Id of sending user</param>
+        public void ReceiveTip(double Amount, int UID)
+        {
+            if (RainMode == RainType.user || RainMode == RainType.combination)
+            {
+                User Sender = User.FindUser(UID);
+                if (Sender != null)
+                {
+                    SQLBASE.Instance().ReceivedTip(Sender.Uid, Amount, DateTime.Now);
+                }
+            }
         }
         #endregion
 
@@ -1829,9 +1981,12 @@ namespace SeuntjieBot
         {
             if ((DateTime.Now - LastSent).TotalMilliseconds>=1000 && MessageQueue.Count>0)
             {
-                if (SendMessage!=null)
+                if (SendMessage != null)
+                {
+                    SendMessage tmp = MessageQueue.Dequeue();
                     if (!LogOnly)
-                        SendMessage(MessageQueue.Dequeue());
+                        SendMessage(tmp);
+                }
             }
         }
 

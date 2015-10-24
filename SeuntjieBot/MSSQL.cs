@@ -14,7 +14,7 @@ namespace SeuntjieBot
         {
             return new SqlConnection("SERVER=localhost;DATABASE=md;integrated security=true");
         }
-        public override User updateUser(User ToUpdate)
+        internal  override User updateUser(User ToUpdate)
         {
             User tmp = null;
             SqlConnection sqcon = GetCon();
@@ -46,7 +46,7 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        public override User Usergetbyname(string Username)
+        internal  override User Usergetbyname(string Username)
         {
             User tmp = null;
             SqlConnection sqcon = GetCon();
@@ -70,7 +70,7 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        public override User UsergetbyID(int ID)
+        internal  override User UsergetbyID(int ID)
         {
             User tmp = null;
             SqlConnection sqcon = GetCon();
@@ -95,7 +95,7 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        public override bool Redlist(User ToRedlist, string Reason)
+        internal  override bool Redlist(User ToRedlist, string Reason)
         {
             SqlConnection sqcon = GetCon();
             bool success = false;
@@ -117,7 +117,7 @@ namespace SeuntjieBot
             return success;
         }
 
-        public override bool DeRedlist(User ToRedlist)
+        internal  override bool DeRedlist(User ToRedlist)
         {
             SqlConnection sqcon = GetCon();
             bool success = false;
@@ -139,7 +139,7 @@ namespace SeuntjieBot
             return success;
         }
 
-        public override bool BlackList(User ToRedlist, string Reason)
+        internal  override bool BlackList(User ToRedlist, string Reason)
         {
             SqlConnection sqcon = GetCon();
             bool success = false;
@@ -161,7 +161,7 @@ namespace SeuntjieBot
             return success;
         }
 
-        public override bool DeBlacklist(User ToRedlist)
+        internal  override bool DeBlacklist(User ToRedlist)
         {
             SqlConnection sqcon = GetCon();
             bool success = false;
@@ -183,7 +183,7 @@ namespace SeuntjieBot
             return success;
         }
 
-        public override bool LogMessage(chat Message)
+        internal  override bool LogMessage(chat Message)
         {
             bool ret = false;
             SqlConnection sqcon = GetCon();
@@ -210,7 +210,7 @@ namespace SeuntjieBot
             return ret;
         }
 
-        public override double[] GetTotalRained()
+        internal  override double[] GetTotalRained()
         {
             SqlConnection sqcon = GetCon();
             double[] tmp = new double[2];
@@ -236,7 +236,7 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        public override double[] GetUserRained(int uid)
+        internal  override double[] GetUserRained(int uid)
         {
             SqlConnection sqcon = GetCon();
             double[] tmp = new double[2];
@@ -263,8 +263,8 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        
-        public override bool RainAdd(double amount, int uid, DateTime Time)
+
+        internal  override bool RainAdd(double amount, int uid, DateTime Time, int Instigator, bool forced)
         {
             string txid = "";
             bool valid = false;
@@ -275,6 +275,8 @@ namespace SeuntjieBot
                 SqlCommand Command = new SqlCommand("Rain_ADD", sqcon);
                 Command.Parameters.AddWithValue("amount", amount);
                 Command.Parameters.AddWithValue("time", DateTime.UtcNow);
+                Command.Parameters.AddWithValue("uid", Instigator);
+                Command.Parameters.AddWithValue("force", forced);
                 Command.CommandType = CommandType.StoredProcedure;
                 SqlDataReader Reader = Command.ExecuteReader();
                 if (Reader.Read())
@@ -302,7 +304,7 @@ namespace SeuntjieBot
             return valid;
         }
 
-        public override bool logCommand(string Message, int Uid)
+        internal  override bool logCommand(string Message, int Uid)
         {
             //parent.AddMessage(cur.id + ": " + msg);
             SqlConnection Con = GetCon();
@@ -328,7 +330,7 @@ namespace SeuntjieBot
             return valid;
         }
 
-        public override int GetUserStatus(User GetFor)
+        internal  override int GetUserStatus(User GetFor)
         {
             SqlConnection sqcon = GetCon();
             int status = 0;
@@ -354,7 +356,7 @@ namespace SeuntjieBot
             return status;
         }
 
-        public override LateMessage[] GetMessagesForUser(User ToGet)
+        internal  override LateMessage[] GetMessagesForUser(User ToGet)
         {
             List<LateMessage> tmp = new List<LateMessage>();
             SqlConnection sqcon = GetCon();
@@ -379,7 +381,7 @@ namespace SeuntjieBot
             return tmp.ToArray();
         }
 
-        public override string GetBlackReasonForUser(User GetFor)
+        internal  override string GetBlackReasonForUser(User GetFor)
         {
             string tmp = null;
             SqlConnection sqcon = GetCon();
@@ -404,7 +406,7 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        public override string GetRedReasonForUser(User GetFor)
+        internal  override string GetRedReasonForUser(User GetFor)
         {
             string tmp = null;
             SqlConnection sqcon = GetCon();
@@ -429,7 +431,7 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        public override bool AddMessageForUser(LateMessage msg)
+        internal  override bool AddMessageForUser(LateMessage msg)
         {
             int tmp = 0;
             SqlConnection sqcon = GetCon();
@@ -454,7 +456,7 @@ namespace SeuntjieBot
             return tmp!=0;
         }
 
-        public override bool SentMessageForUser(LateMessage msg)
+        internal  override bool SentMessageForUser(LateMessage msg)
         {
             int tmp = 0;
             SqlConnection sqcon = GetCon();
@@ -474,6 +476,74 @@ namespace SeuntjieBot
             }
             sqcon.Close();
             return tmp != 0;
+        }
+
+        internal override decimal getTotalUsersBalance()
+        {
+            decimal tmp = 0;
+            SqlConnection sqcon = GetCon();
+            try
+            {
+                sqcon.Open();
+                SqlCommand Command = new SqlCommand("getTotalUsersBalance", sqcon);
+                Command.CommandType = System.Data.CommandType.StoredProcedure;
+
+                SqlDataReader Reader = Command.ExecuteReader();
+
+                tmp = (decimal)Reader["balance"];
+            }
+            catch
+            {
+
+            }
+            sqcon.Close();
+            return tmp;
+        }
+
+        internal override void ReduceUserBalance(long p, decimal Amount)
+        {
+            decimal tmp = 0;
+            SqlConnection sqcon = GetCon();
+            try
+            {
+                sqcon.Open();
+                SqlCommand Command = new SqlCommand("ReduceUserBalance", sqcon);
+                Command.CommandType = System.Data.CommandType.StoredProcedure;
+                Command.Parameters.AddWithValue("uid", p);
+                Command.Parameters.AddWithValue("amount", Amount);
+                tmp = Command.ExecuteNonQuery();
+
+                
+            }
+            catch
+            {
+
+            }
+            sqcon.Close();
+            
+        }
+
+        internal override void ReceivedTip(long p, double Amount, DateTime Time)
+        {
+            decimal tmp = 0;
+            SqlConnection sqcon = GetCon();
+            try
+            {
+                sqcon.Open();
+                SqlCommand Command = new SqlCommand("TipReceived", sqcon);
+                Command.CommandType = System.Data.CommandType.StoredProcedure;
+                Command.Parameters.AddWithValue("uid", p);
+                Command.Parameters.AddWithValue("amount", Amount);
+                Command.Parameters.AddWithValue("time", Time);
+                tmp = Command.ExecuteNonQuery();
+
+
+            }
+            catch
+            {
+
+            }
+            sqcon.Close();
         }
     }
 }

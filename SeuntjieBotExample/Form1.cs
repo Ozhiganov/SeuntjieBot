@@ -177,7 +177,16 @@ namespace SeuntjieBotExample
                             if (seuntjie!=null)
                             seuntjie.ReceiveMessage(tmpChat2);
                         }
+                        else if (tmpChat.type == "tip" )
+                        {
+                            if (tmpChat.tip!=null)
+                            {
+                                if (int.Parse(tmpChat.tip.user_id) == seuntjie.OwnID)
+                                seuntjie.ReceiveTip(double.Parse(tmpChat.tip.amount), int.Parse(tmpChat.from.user_id));
+                            }
+                        }
                     }
+                    
                 }
             }
             //throw new NotImplementedException();
@@ -401,19 +410,46 @@ namespace SeuntjieBotExample
             timer1.Enabled = true;
             if (tmp.State == WebSocketState.Open)
             {
-                seuntjie = new SeuntjieBot.SeuntjieBot();
-                seuntjie.OwnID = 1261;
-                seuntjie.MinRain = 0.0005m;
-                seuntjie.RainPercentage = 0.01m;
-                seuntjie.RainInterval = new TimeSpan(0, 10, 0);
-                seuntjie.LogOnly = true;
-                seuntjie.RainScore = 5;
+                seuntjie = new SeuntjieBot.SeuntjieBot(1261);
+                seuntjie.RainMode = (RainType)(rdbNat.Checked?0: rdbUser.Checked?1:2);
+                seuntjie.MinRain = nudMinRain.Value;
+                seuntjie.RainPercentage = nudRainPerc.Value/100m;
+                seuntjie.RainInterval = new TimeSpan(0, 0, (int)(nudRainTime.Value*60m));
+                seuntjie.LogOnly = chkLogOnly.Checked;
+                seuntjie.RainScore = (int)numericUpDown1.Value;
                 seuntjie.ActiveUsersChanged += seuntjie_ActiveUsersChanged;
                 seuntjie.GetBalance += seuntjie_GetBalance;
                 seuntjie.SendMessage += seuntjie_SendMessage;
                 seuntjie.SendRain += seuntjie_SendRain;
+                seuntjie.CommandsUpdated += seuntjie_CommandsUpdated;
+                seuntjie.loadCommands();
             }
 
+        }
+        delegate void dCommandsUpdated(List<Command> Commands);
+        void CommandsUpdated(List<Command> Commands)
+        {
+            clbCommands.Items.Clear();
+            foreach (Command c in Commands)
+            {
+                clbCommands.Items.Add(c.sCommand, c.Enabled);
+            }
+        }
+        void seuntjie_CommandsUpdated(Command[] Commands)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new dCommandsUpdated(CommandsUpdated), Commands.ToList());
+                return;
+            }
+            else
+            {
+                clbCommands.Items.Clear();
+                foreach (Command c in Commands)
+                {
+                    clbCommands.Items.Add(c.sCommand, c.Enabled);
+                }
+            }
         }
 
         bool seuntjie_SendRain(User RainOn, double Amount)
@@ -538,6 +574,76 @@ namespace SeuntjieBotExample
 
         }
 
+        private void clbCommands_ItemCheck(object sender, ItemCheckEventArgs e)
+        {
+            if (clbCommands.SelectedIndex == e.Index)
+            {
+                seuntjie.UpdateCommand(clbCommands.Items[e.Index].ToString(), e.NewValue == CheckState.Checked);
+            }
+        }
+
+        private void nudMinRain_ValueChanged(object sender, EventArgs e)
+        {
+            if (seuntjie!=null)
+            {
+                seuntjie.MinRain = nudMinRain.Value;
+            }
+        }
+
+        private void nudRainPerc_ValueChanged(object sender, EventArgs e)
+        {
+            if (seuntjie != null)
+            {
+                seuntjie.RainPercentage = nudRainPerc.Value;
+            }
+        }
+
+        private void nudRainTime_ValueChanged(object sender, EventArgs e)
+        {
+            if (seuntjie != null)
+            {
+                seuntjie.RainInterval = new TimeSpan(0, 0, (int)(nudRainTime.Value*60m));
+            }
+        }
+
+        private void btnRain_Click(object sender, EventArgs e)
+        {
+            seuntjie.Rain(true);
+        }
+
+        private void rdbComb_CheckedChanged(object sender, EventArgs e)
+        {
+            if (seuntjie != null)
+            {
+                if ((sender as CheckBox).Checked)
+                {
+                    switch ((sender as CheckBox).Name)
+                    {
+                        case "chkUser": seuntjie.RainMode = RainType.user; break;
+                        case "chkNat": seuntjie.RainMode = RainType.user; break;
+                        case "chkComb": seuntjie.RainMode = RainType.user; break;
+                        default: seuntjie.RainMode = RainType.combination;break;
+                    }
+                }
+            }
+        }
+
+        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
+        {
+            if (seuntjie!=null)
+            {
+                seuntjie.RainScore = (int)numericUpDown1.Value;
+            }
+        }
+
+        private void chkLogOnly_CheckedChanged(object sender, EventArgs e)
+        {
+            if (seuntjie!=null)
+            {
+                seuntjie.LogOnly = chkLogOnly.Checked;
+            }
+        }
+
     }
 
     public class MDAuthKey
@@ -573,6 +679,7 @@ namespace SeuntjieBotExample
             };
             return tmp;
         }
+        public mdTip tip { get; set; }
     }
     
     public class mdfrom
@@ -580,5 +687,11 @@ namespace SeuntjieBotExample
         public string user_id { get; set; }
         public string user_name { get; set; }
         public string user_permissions { get; set; }
+    }
+    public class mdTip
+    {
+        public string user_id { get; set; }
+        public string user_name { get; set; }
+        public string amount { get; set; }
     }
 }

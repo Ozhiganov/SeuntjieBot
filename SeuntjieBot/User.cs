@@ -28,8 +28,8 @@ namespace SeuntjieBot
         public string LastMessage { get; set; }
         public LateMessage[] MessageFor { get; set; }
         public List<score> Score { get; set; }
-        public string rain { get; set; }
-        public string times { get; set; }
+        public double rain { get; set; }
+        public int times { get; set; }
         public int Listed { get; set; }
         public DateTime Warning { get; set; }
         public double balance { get; set; }

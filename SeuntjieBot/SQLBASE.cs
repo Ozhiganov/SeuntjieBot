@@ -15,20 +15,20 @@ namespace SeuntjieBot
         }
         
         //user
-        public abstract User updateUser(User ToUpdate);
-        public abstract User Usergetbyname(string Username);
-        public abstract User UsergetbyID(int ID);
-        public abstract bool Redlist(User ToRedlist, string Reason);
-        public abstract bool DeRedlist(User ToRedlist);
-        public abstract bool BlackList(User ToRedlist, string Reason);
-        public abstract bool DeBlacklist(User ToRedlist);
-        public abstract int GetUserStatus(User GetFor);
-        public abstract string GetBlackReasonForUser(User GetFor);
-        public abstract string GetRedReasonForUser(User GetFor);
-        public abstract LateMessage[] GetMessagesForUser(User ToGet);
-        public abstract bool AddMessageForUser(LateMessage msg);
-        public abstract bool SentMessageForUser(LateMessage msg);
-        public LateMessage MsgParser(IDataReader Reader)
+        internal abstract User updateUser(User ToUpdate);
+        internal abstract User Usergetbyname(string Username);
+        internal abstract User UsergetbyID(int ID);
+        internal abstract bool Redlist(User ToRedlist, string Reason);
+        internal abstract bool DeRedlist(User ToRedlist);
+        internal abstract bool BlackList(User ToRedlist, string Reason);
+        internal abstract bool DeBlacklist(User ToRedlist);
+        internal abstract int GetUserStatus(User GetFor);
+        internal abstract string GetBlackReasonForUser(User GetFor);
+        internal abstract string GetRedReasonForUser(User GetFor);
+        internal abstract LateMessage[] GetMessagesForUser(User ToGet);
+        internal abstract bool AddMessageForUser(LateMessage msg);
+        internal abstract bool SentMessageForUser(LateMessage msg);
+        internal LateMessage MsgParser(IDataReader Reader)
         {
             LateMessage tmp = new LateMessage { };
             tmp.FromUid = (int)Reader["msg_from"];
@@ -42,7 +42,7 @@ namespace SeuntjieBot
             return tmp;
         }
         
-        public User UserParser(System.Data.IDataReader Reader)
+        internal User UserParser(System.Data.IDataReader Reader)
         {
             try
             {
@@ -55,8 +55,9 @@ namespace SeuntjieBot
                 tmp.Uid = (int)Reader["uid"];
                 tmp.LastSeen = !(Reader["lastactive"] is DBNull)? (DateTime)Reader["lastactive"] : new DateTime();
                 tmp.LastMessage = !(Reader["lastmessage"] is DBNull)? (string)Reader["lastmessage"] : "";
-                tmp.rain = !(Reader["rained"] is DBNull)? (string)Reader["rained"] : "";
-                tmp.times = !(Reader["times"] is DBNull) ? (string)Reader["times"] : "";
+                tmp.rain = !(Reader["rained"] is DBNull)? (double)(decimal)Reader["rained"] : 0;
+                tmp.balance = !(Reader["balance"] is DBNull) ? (double)(decimal)Reader["balance"] : 0;
+                tmp.times = !(Reader["times"] is DBNull) ? (int)Reader["times"] : 0;
                 tmp.Listed = GetUserStatus(tmp);
                 tmp.MessageFor = GetMessagesForUser(tmp);
                 return tmp;
@@ -68,17 +69,26 @@ namespace SeuntjieBot
         }
 
         //message
-        public abstract bool LogMessage(chat Message);
+        internal abstract bool LogMessage(chat Message);
 
         //rain
-        public abstract double[] GetTotalRained();
-        public abstract double[] GetUserRained(int uid);
-        public abstract bool RainAdd(double amount, int uid, DateTime Time);
+        internal abstract double[] GetTotalRained();
+        internal abstract double[] GetUserRained(int uid);
+        internal abstract bool RainAdd(double amount, int uid, DateTime Time, int Instigator, bool forced);
         
         //command
         
 
         //log
-        public abstract bool logCommand(string Message, int Uid);
+        internal abstract bool logCommand(string Message, int Uid);
+
+        internal abstract decimal getTotalUsersBalance();
+
+
+        internal abstract void ReduceUserBalance(long p, decimal Amount);
+
+
+        internal abstract void ReceivedTip(long p, double Amount, DateTime Time);
+        
     }
 }
