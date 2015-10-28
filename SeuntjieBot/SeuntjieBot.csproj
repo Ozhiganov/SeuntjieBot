@@ -50,6 +50,12 @@
   <ItemGroup>
     <Compile Include="chat.cs" />
     <Compile Include="Command.cs" />
+    <Compile Include="UI.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI.Designer.cs">
+      <DependentUpon>UI.cs</DependentUpon>
+    </Compile>
     <Compile Include="LateMessage.cs" />
     <Compile Include="MarketThingy.cs" />
     <Compile Include="MSSQL.cs" />
@@ -60,6 +66,9 @@
     <Compile Include="SQLBASE.cs" />
     <Compile Include="User.cs" />
     <Compile Include="Words.cs" />
+    <EmbeddedResource Include="UI.resx">
+      <DependentUpon>UI.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

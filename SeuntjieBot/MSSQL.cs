@@ -12,7 +12,7 @@ namespace SeuntjieBot
     {
         SqlConnection GetCon()
         {
-            return new SqlConnection("SERVER=localhost;DATABASE=md;integrated security=true");
+            return new SqlConnection(SeuntjieBot.sqlConnectionString); //"SERVER=localhost;DATABASE=md;integrated security=true");
         }
         internal  override User updateUser(User ToUpdate)
         {
@@ -368,7 +368,7 @@ namespace SeuntjieBot
                 Command.Parameters.AddWithValue("uid", ToGet.Uid);
 
                 SqlDataReader Reader = Command.ExecuteReader();
-                if (Reader.Read())
+                while (Reader.Read())
                 {
                     tmp.Add(MsgParser(Reader));
                 }
@@ -489,8 +489,10 @@ namespace SeuntjieBot
                 Command.CommandType = System.Data.CommandType.StoredProcedure;
 
                 SqlDataReader Reader = Command.ExecuteReader();
-
-                tmp = (decimal)Reader["balance"];
+                if (Reader.Read())
+                {
+                    tmp = (decimal)Reader["balance"];
+                }
             }
             catch
             {

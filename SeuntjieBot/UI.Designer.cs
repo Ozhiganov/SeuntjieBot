@@ -1,6 +1,6 @@
-﻿namespace SeuntjieBotExample
+﻿namespace SeuntjieBot
 {
-    partial class Form1
+    partial class Ui
     {
         /// <summary>
         /// Required designer variable.
@@ -30,7 +30,6 @@
         {
             this.components = new System.ComponentModel.Container();
             this.btnStart = new System.Windows.Forms.Button();
-            this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.txtUsername = new System.Windows.Forms.TextBox();
             this.txtPassword = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
@@ -67,6 +66,9 @@
             this.nudRainTime = new System.Windows.Forms.NumericUpDown();
             this.nudRainPerc = new System.Windows.Forms.NumericUpDown();
             this.nudMinRain = new System.Windows.Forms.NumericUpDown();
+            this.label14 = new System.Windows.Forms.Label();
+            this.lblTimeNext = new System.Windows.Forms.Label();
+            this.tmrRainTime = new System.Windows.Forms.Timer(this.components);
             this.panel1.SuspendLayout();
             this.panel2.SuspendLayout();
             this.tabControl1.SuspendLayout();
@@ -87,10 +89,6 @@
             this.btnStart.Text = "Start Bot";
             this.btnStart.UseVisualStyleBackColor = true;
             this.btnStart.Click += new System.EventHandler(this.button1_Click);
-            // 
-            // timer1
-            // 
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
             // 
             // txtUsername
             // 
@@ -297,6 +295,8 @@
             // 
             // tabPage2
             // 
+            this.tabPage2.Controls.Add(this.lblTimeNext);
+            this.tabPage2.Controls.Add(this.label14);
             this.tabPage2.Controls.Add(this.label13);
             this.tabPage2.Controls.Add(this.numericUpDown1);
             this.tabPage2.Controls.Add(this.chkLogOnly);
@@ -472,7 +472,31 @@
             0,
             262144});
             // 
-            // Form1
+            // label14
+            // 
+            this.label14.AutoSize = true;
+            this.label14.Location = new System.Drawing.Point(1, 26);
+            this.label14.Name = "label14";
+            this.label14.Size = new System.Drawing.Size(88, 13);
+            this.label14.TabIndex = 36;
+            this.label14.Text = "Time to next rain:";
+            // 
+            // lblTimeNext
+            // 
+            this.lblTimeNext.AutoSize = true;
+            this.lblTimeNext.Location = new System.Drawing.Point(92, 26);
+            this.lblTimeNext.Name = "lblTimeNext";
+            this.lblTimeNext.Size = new System.Drawing.Size(13, 13);
+            this.lblTimeNext.TabIndex = 37;
+            this.lblTimeNext.Text = "0";
+            // 
+            // tmrRainTime
+            // 
+            this.tmrRainTime.Enabled = true;
+            this.tmrRainTime.Interval = 1000;
+            this.tmrRainTime.Tick += new System.EventHandler(this.tmrRainTime_Tick);
+            // 
+            // Ui
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -480,7 +504,7 @@
             this.Controls.Add(this.tabControl1);
             this.Controls.Add(this.lstChat);
             this.Controls.Add(this.panel1);
-            this.Name = "Form1";
+            this.Name = "Ui";
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.panel1.ResumeLayout(false);
@@ -502,43 +526,45 @@
         #endregion
 
         private System.Windows.Forms.Button btnStart;
-        private System.Windows.Forms.Timer timer1;
         private System.Windows.Forms.TextBox txtUsername;
         private System.Windows.Forms.TextBox txtPassword;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Panel panel2;
-        private System.Windows.Forms.ListBox lbEligible;
-        private System.Windows.Forms.ListBox lbActive;
-        private System.Windows.Forms.CheckedListBox clbCommands;
-        private System.Windows.Forms.Label label6;
         private System.Windows.Forms.ListBox lstChat;
-        private System.Windows.Forms.Label label11;
-        private System.Windows.Forms.Label label10;
-        private System.Windows.Forms.ListBox lbRedList;
-        private System.Windows.Forms.ListBox lbBlackList;
-        private System.Windows.Forms.Label label9;
-        private System.Windows.Forms.Label label8;
-        private System.Windows.Forms.Label label7;
         private System.Windows.Forms.TabControl tabControl1;
         private System.Windows.Forms.TabPage tabPage1;
         private System.Windows.Forms.TabPage tabPage2;
-        private System.Windows.Forms.Label label12;
-        private System.Windows.Forms.Button btnRain;
-        private System.Windows.Forms.RadioButton rdbComb;
-        private System.Windows.Forms.RadioButton rdbNat;
-        private System.Windows.Forms.RadioButton rdbUser;
-        private System.Windows.Forms.Label label5;
-        private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.NumericUpDown nudRainTime;
-        private System.Windows.Forms.NumericUpDown nudRainPerc;
-        private System.Windows.Forms.NumericUpDown nudMinRain;
-        private System.Windows.Forms.CheckBox chkLogOnly;
-        private System.Windows.Forms.Label label13;
-        private System.Windows.Forms.NumericUpDown numericUpDown1;
+        protected System.Windows.Forms.ListBox lbEligible;
+        protected System.Windows.Forms.ListBox lbActive;
+        protected System.Windows.Forms.CheckedListBox clbCommands;
+        protected System.Windows.Forms.Label label6;
+        protected System.Windows.Forms.Label label11;
+        protected System.Windows.Forms.Label label10;
+        protected System.Windows.Forms.ListBox lbRedList;
+        protected System.Windows.Forms.ListBox lbBlackList;
+        protected System.Windows.Forms.Label label9;
+        protected System.Windows.Forms.Label label8;
+        protected System.Windows.Forms.Label label7;
+        protected System.Windows.Forms.Label label12;
+        protected System.Windows.Forms.Button btnRain;
+        protected System.Windows.Forms.RadioButton rdbComb;
+        protected System.Windows.Forms.RadioButton rdbNat;
+        protected System.Windows.Forms.RadioButton rdbUser;
+        protected System.Windows.Forms.Label label5;
+        protected System.Windows.Forms.Label label4;
+        protected System.Windows.Forms.Label label3;
+        protected System.Windows.Forms.NumericUpDown nudRainTime;
+        protected System.Windows.Forms.NumericUpDown nudRainPerc;
+        protected System.Windows.Forms.NumericUpDown nudMinRain;
+        protected System.Windows.Forms.CheckBox chkLogOnly;
+        protected System.Windows.Forms.Label label13;
+        protected System.Windows.Forms.NumericUpDown numericUpDown1;
         protected System.Windows.Forms.Label lblBalance;
+        private System.Windows.Forms.Label lblTimeNext;
+        private System.Windows.Forms.Label label14;
+        private System.Windows.Forms.Timer tmrRainTime;
     }
 }
 

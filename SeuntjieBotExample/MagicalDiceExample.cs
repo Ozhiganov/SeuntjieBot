@@ -1,8 +1,7 @@
-﻿using System;
+﻿using Noesis.Javascript;
+using SeuntjieBot;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -10,45 +9,26 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using WebSocket4Net;
-using SeuntjieBot;
-using Noesis.Javascript;
 
 namespace SeuntjieBotExample
 {
-    public partial class Form1 : Form
+    class MagicalDiceExample: SeuntjieBot.Ui
     {
-        SeuntjieBot.SeuntjieBot seuntjie;
-        WebSocket tmp;
-        int id = 0;
-        DateTime lastmessage = DateTime.UtcNow;
-        public Form1()
+        public MagicalDiceExample(): base()
         {
-            InitializeComponent();
-        }
-        public static string CurrentDate()
-        {
-            TimeSpan dt = DateTime.UtcNow - DateTime.Parse("1970/01/01 00:00:00", System.Globalization.CultureInfo.InvariantCulture);
-            double mili = dt.TotalMilliseconds;
-            return ((long)mili).ToString();
+            timer1.Tick+=timer1_Tick;
+            timer1.Interval = 100;
+            timer1.Start();
             
         }
-
-        /// <summary>
-        /// Converts to current date and time for local time zone
-        /// </summary>
-        /// <param name="milliseconds"></param>
-        /// <returns></returns>
-        public static DateTime ToDateTime(string milliseconds)
-        {
-            DateTime tmpDate = DateTime.Parse("1970/01/01 00:00:00", System.Globalization.CultureInfo.InvariantCulture);
-            tmpDate = tmpDate.AddSeconds(long.Parse(milliseconds));
-            tmpDate += (DateTime.Now - DateTime.UtcNow);
-            return tmpDate;
-        }
+        
+        System.Windows.Forms.Timer timer1 = new System.Windows.Forms.Timer();
+        WebSocket tmp;
+        int id = 0;
         void connectSocket()
         {
+            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
             
             //-1&sid=mDP2w-pcIQUxoaSfAANK
             HttpWebRequest
@@ -150,60 +130,35 @@ namespace SeuntjieBotExample
             }
         }
 
-        void tmp_MessageReceived(object sender, MessageReceivedEventArgs e)
+        protected override void seuntjie_SendMessage(SendMessage Message)
         {
-
-            if (e.Message == "3probe")
+            if (tmp.State == WebSocketState.Open)
             {
-                tmp.Send("5");
-            }
-            else
-            {
-
-                if (e.Message != "3")
+                if (csrf == "" || csrf == null)
+                {
+                    string s1 = Client.GetStringAsync("ajax.php?a=get_csrf").Result;
+                    MDCsrf csr = SeuntjieBot.SeuntjieBot.JsonDeserialize<MDCsrf>(s1);
+                    csrf = csr.csrf;
+                    lastCsrf = DateTime.Now;
+                }
+                List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
+                pairs.Add(new KeyValuePair<string, string>("text", Message.Message));
+                pairs.Add(new KeyValuePair<string, string>("a", "submit_chat"));
+                pairs.Add(new KeyValuePair<string, string>("csrf", csrf));
+                pairs.Add(new KeyValuePair<string, string>("user_id", Message.Pm ? Message.ToUser.Uid.ToString() : "0"));
+                FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
+                try
+                {
+                    string sEmitResponse = Client.PostAsync("ajax.php", Content).Result.Content.ReadAsStringAsync().Result;
+                    string s1 = Client.GetStringAsync("ajax.php?a=get_csrf").Result;
+                    MDCsrf csr = SeuntjieBot.SeuntjieBot.JsonDeserialize<MDCsrf>(s1);
+                    csrf = csr.csrf;
+                    lastCsrf = DateTime.Now;
+                }
+                catch (AggregateException e)
                 {
 
-                    if (e.Message.StartsWith("42[\"chat\","))
-                    {
-                        
-                        string msg = e.Message.Substring("42[\"chat\",".Length);
-                        msg = msg.Substring(0, msg.LastIndexOf("]"));
-                        msg = msg.Replace("\"to\":0,", "\"to\":null,");
-                        AddMessage(msg);
-                        mdchat tmpChat = SeuntjieBot.SeuntjieBot.JsonDeserialize<mdchat>(msg);
-                        if (tmpChat.type == "text" || tmpChat.type == "private")
-                        {
-                            chat tmpChat2 = tmpChat.ToChat();
-                            if (seuntjie!=null)
-                            seuntjie.ReceiveMessage(tmpChat2);
-                        }
-                        else if (tmpChat.type == "tip" )
-                        {
-                            if (tmpChat.tip!=null)
-                            {
-                                if (int.Parse(tmpChat.tip.user_id) == seuntjie.OwnID)
-                                seuntjie.ReceiveTip(double.Parse(tmpChat.tip.amount), int.Parse(tmpChat.from.user_id));
-                            }
-                        }
-                    }
-                    
                 }
-            }
-            //throw new NotImplementedException();
-        }
-
-        delegate void dAddMessage(string s);
-        void AddMessage(string Message)
-        {
-            if (InvokeRequired)
-            {
-                Invoke(new dAddMessage(AddMessage), Message);
-                return;
-            }
-            lstChat.Items.Insert(0, Message);
-            if (lstChat.Items.Count > 300)
-            {
-                lstChat.Items.RemoveAt(lstChat.Items.Count - 1);
             }
         }
 
@@ -226,7 +181,7 @@ namespace SeuntjieBotExample
         private HttpClientHandler ClientHandlr;
         private HttpClient Client;
         private int cflevel;
-        public void Login(string Username, string Password, string twofa)
+        protected override bool LogIn(string Username, string Password, string twofa)
         {
 
             //get the cloudflare and site headers
@@ -256,7 +211,7 @@ namespace SeuntjieBotExample
                         if (!doCFThing(s1))
                         {
 
-                            return;
+                            return false;
                         }
 
                     }
@@ -302,8 +257,11 @@ namespace SeuntjieBotExample
 
                 s1 = Client.GetStringAsync("ajax.php?a=get_balance").Result;
                 balance = double.Parse(s1.Replace("\"", ""), System.Globalization.NumberFormatInfo.InvariantInfo);
-
-
+                connectSocket();
+                if (tmp.State == WebSocketState.Open)
+                {
+                    return true;
+                }
 
             }
             catch (AggregateException e)
@@ -314,7 +272,16 @@ namespace SeuntjieBotExample
             {
 
             }
+            return false;
         }
+
+        protected override void button1_Click(object sender, EventArgs e)
+        {
+            ConnectionString = "SERVER=localhost;DATABASE=md;integrated security=true";
+            base.button1_Click(sender, e);
+            timer1.Enabled = true;
+        }
+
         string authkey;
         string csrf;
         double balance = 0;
@@ -374,85 +341,49 @@ namespace SeuntjieBotExample
             return false;
         }
 
-        public decimal GetBalance()
-        {
-            return (decimal)balance;
-        }
-
-        public bool rain(decimal amount, string User)
+        void tmp_MessageReceived(object sender, MessageReceivedEventArgs e)
         {
 
-            string s1 = Client.GetStringAsync("ajax.php?a=get_csrf").Result;
-            MDCsrf tmp = SeuntjieBot.SeuntjieBot.JsonDeserialize<MDCsrf>(s1);
-            List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
-            pairs.Add(new KeyValuePair<string, string>("a", "tip_user"));
-            pairs.Add(new KeyValuePair<string, string>("user_id", User));
-            pairs.Add(new KeyValuePair<string, string>("amount", amount.ToString(System.Globalization.NumberFormatInfo.InvariantInfo)));
-            pairs.Add(new KeyValuePair<string, string>("csrf", tmp.csrf));
-
-
-            FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-            try
+            if (e.Message == "3probe")
             {
-                string sEmitResponse = Client.PostAsync("ajax.php", Content).Result.Content.ReadAsStringAsync().Result;
-                return true;
-            }
-            catch (AggregateException e)
-            {
-                return false;
-            }
-        }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-            Login(txtUsername.Text, txtPassword.Text, "");            
-            connectSocket();
-            timer1.Enabled = true;
-            if (tmp.State == WebSocketState.Open)
-            {
-                seuntjie = new SeuntjieBot.SeuntjieBot(1261);
-                seuntjie.RainMode = (RainType)(rdbNat.Checked?0: rdbUser.Checked?1:2);
-                seuntjie.MinRain = nudMinRain.Value;
-                seuntjie.RainPercentage = nudRainPerc.Value/100m;
-                seuntjie.RainInterval = new TimeSpan(0, 0, (int)(nudRainTime.Value*60m));
-                seuntjie.LogOnly = chkLogOnly.Checked;
-                seuntjie.RainScore = (int)numericUpDown1.Value;
-                seuntjie.ActiveUsersChanged += seuntjie_ActiveUsersChanged;
-                seuntjie.GetBalance += seuntjie_GetBalance;
-                seuntjie.SendMessage += seuntjie_SendMessage;
-                seuntjie.SendRain += seuntjie_SendRain;
-                seuntjie.CommandsUpdated += seuntjie_CommandsUpdated;
-                seuntjie.loadCommands();
-            }
-
-        }
-        delegate void dCommandsUpdated(List<Command> Commands);
-        void CommandsUpdated(List<Command> Commands)
-        {
-            clbCommands.Items.Clear();
-            foreach (Command c in Commands)
-            {
-                clbCommands.Items.Add(c.sCommand, c.Enabled);
-            }
-        }
-        void seuntjie_CommandsUpdated(Command[] Commands)
-        {
-            if (InvokeRequired)
-            {
-                Invoke(new dCommandsUpdated(CommandsUpdated), Commands.ToList());
-                return;
+                tmp.Send("5");
             }
             else
             {
-                clbCommands.Items.Clear();
-                foreach (Command c in Commands)
+
+                if (e.Message != "3")
                 {
-                    clbCommands.Items.Add(c.sCommand, c.Enabled);
+
+                    if (e.Message.StartsWith("42[\"chat\","))
+                    {
+
+                        string msg = e.Message.Substring("42[\"chat\",".Length);
+                        msg = msg.Substring(0, msg.LastIndexOf("]"));
+                        msg = msg.Replace("\"to\":0,", "\"to\":null,");
+                        AddMessage(msg);
+                        mdchat tmpChat = SeuntjieBot.SeuntjieBot.JsonDeserialize<mdchat>(msg);
+                        if (tmpChat.type == "text" || tmpChat.type == "private")
+                        {
+                            chat tmpChat2 = tmpChat.ToChat();
+                            if (seuntjie != null)
+                                seuntjie.ReceiveMessage(tmpChat2);
+                        }
+                        else if (tmpChat.type == "tip")
+                        {
+                            if (tmpChat.tip != null)
+                            {
+                                if (int.Parse(tmpChat.tip.user_id) == seuntjie.OwnID)
+                                    seuntjie.ReceiveTip(double.Parse(tmpChat.tip.amount), int.Parse(tmpChat.from.user_id));
+                            }
+                        }
+                    }
+
                 }
             }
+            //throw new NotImplementedException();
         }
 
-        bool seuntjie_SendRain(User RainOn, double Amount)
+        protected override bool seuntjie_SendRain(User RainOn, double Amount)
         {
             string s1 = Client.GetStringAsync("ajax.php?a=get_csrf").Result;
             MDCsrf tmp = SeuntjieBot.SeuntjieBot.JsonDeserialize<MDCsrf>(s1);
@@ -474,40 +405,8 @@ namespace SeuntjieBotExample
                 return false;
             }
         }
-        DateTime lastCsrf = DateTime.Now;
-        void seuntjie_SendMessage(SendMessage Message)
-        {
-            if (tmp.State == WebSocketState.Open)
-            {
-                if (csrf == "" || csrf == null)
-                {
-                    string s1 = Client.GetStringAsync("ajax.php?a=get_csrf").Result;
-                    MDCsrf csr = SeuntjieBot.SeuntjieBot.JsonDeserialize<MDCsrf>(s1);
-                    csrf = csr.csrf;
-                    lastCsrf = DateTime.Now;
-                }
-                List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
-                pairs.Add(new KeyValuePair<string, string>("text", Message.Message));
-                pairs.Add(new KeyValuePair<string, string>("a", "submit_chat"));
-                pairs.Add(new KeyValuePair<string, string>("csrf", csrf));
-                pairs.Add(new KeyValuePair<string, string>("user_id", Message.Pm?Message.ToUser.Uid.ToString():"0"));
-                FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                try
-                {
-                    string sEmitResponse = Client.PostAsync("ajax.php", Content).Result.Content.ReadAsStringAsync().Result;
-                    string s1 = Client.GetStringAsync("ajax.php?a=get_csrf").Result;
-                    MDCsrf csr = SeuntjieBot.SeuntjieBot.JsonDeserialize<MDCsrf>(s1);
-                    csrf = csr.csrf;
-                    lastCsrf = DateTime.Now;
-                }
-                catch (AggregateException e)
-                {
 
-                }
-            }
-        }
-
-        double seuntjie_GetBalance()
+        public virtual double seuntjie_GetBalance()
         {
             if (InvokeRequired)
             {
@@ -515,41 +414,13 @@ namespace SeuntjieBotExample
             }
             else
             {
+                
                 lblBalance.Text = balance.ToString("0.00000000");
 
             }
             return balance;
         }
-
-        delegate void ActiveChanged(List<User> ActiveUsers);
-        void seuntjie_ActiveUsersChanged(List<User> ActiveUsers)
-        {
-            lbActive.Items.Clear();
-            lbEligible.Items.Clear();
-            foreach (User u in ActiveUsers)
-            {
-                if (u.getscore() >= seuntjie.RainScore)
-                {
-                    lbEligible.Items.Add(u.Username + "(" + u.Uid + ") <"+ u.getscore()+">");
-                }
-                else
-                {
-                    lbActive.Items.Add(u.Username + "(" + u.Uid + ") <" + u.getscore() + ">");
-                }
-            }
-        }
-        
-        void seuntjie_ActiveUsersChanged(User[] ActiveUsers)
-        {
-            if (InvokeRequired)
-            {
-                User[] Users = ActiveUsers;
-                Invoke(new ActiveChanged(seuntjie_ActiveUsersChanged), Users.ToList<User>());
-                return;
-            }
-           
-        }
-
+        DateTime lastCsrf = DateTime.Now;
         DateTime lastbalance = new DateTime();
         private void timer1_Tick(object sender, EventArgs e)
         {
@@ -560,7 +431,7 @@ namespace SeuntjieBotExample
                         tmp.Send("2");
                         lastmessage = DateTime.Now;
                     }
-            if (seuntjie!=null && (DateTime.Now - lastbalance).TotalSeconds>=30)
+            if (seuntjie != null && (DateTime.Now - lastbalance).TotalSeconds >= 30)
             {
                 lastbalance = DateTime.Now;
                 string s1 = Client.GetStringAsync("ajax.php?a=get_balance").Result;
@@ -568,92 +439,15 @@ namespace SeuntjieBotExample
 
             }
         }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-
-        }
-
-        private void clbCommands_ItemCheck(object sender, ItemCheckEventArgs e)
-        {
-            if (clbCommands.SelectedIndex == e.Index)
-            {
-                seuntjie.UpdateCommand(clbCommands.Items[e.Index].ToString(), e.NewValue == CheckState.Checked);
-            }
-        }
-
-        private void nudMinRain_ValueChanged(object sender, EventArgs e)
-        {
-            if (seuntjie!=null)
-            {
-                seuntjie.MinRain = nudMinRain.Value;
-            }
-        }
-
-        private void nudRainPerc_ValueChanged(object sender, EventArgs e)
-        {
-            if (seuntjie != null)
-            {
-                seuntjie.RainPercentage = nudRainPerc.Value;
-            }
-        }
-
-        private void nudRainTime_ValueChanged(object sender, EventArgs e)
-        {
-            if (seuntjie != null)
-            {
-                seuntjie.RainInterval = new TimeSpan(0, 0, (int)(nudRainTime.Value*60m));
-            }
-        }
-
-        private void btnRain_Click(object sender, EventArgs e)
-        {
-            seuntjie.Rain(true);
-        }
-
-        private void rdbComb_CheckedChanged(object sender, EventArgs e)
-        {
-            if (seuntjie != null)
-            {
-                if ((sender as CheckBox).Checked)
-                {
-                    switch ((sender as CheckBox).Name)
-                    {
-                        case "chkUser": seuntjie.RainMode = RainType.user; break;
-                        case "chkNat": seuntjie.RainMode = RainType.user; break;
-                        case "chkComb": seuntjie.RainMode = RainType.user; break;
-                        default: seuntjie.RainMode = RainType.combination;break;
-                    }
-                }
-            }
-        }
-
-        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
-        {
-            if (seuntjie!=null)
-            {
-                seuntjie.RainScore = (int)numericUpDown1.Value;
-            }
-        }
-
-        private void chkLogOnly_CheckedChanged(object sender, EventArgs e)
-        {
-            if (seuntjie!=null)
-            {
-                seuntjie.LogOnly = chkLogOnly.Checked;
-            }
-        }
-
     }
-
-    /*public class MDAuthKey
+    public class MDAuthKey
     {
         public string auth_key { get; set; }
         public string user_id { get; set; }
         public string expires { get; set; }
     }
 
-    
+
     public class MDCsrf
     {
         public string csrf { get; set; }
@@ -664,24 +458,24 @@ namespace SeuntjieBotExample
         public long time { get; set; }
         public mdfrom from { get; set; }
         public string msg { get; set; }
-//        public int to { get; set; }
+        //        public int to { get; set; }
         public mdfrom to { get; set; }
         public string type { get; set; }
-        public SeuntjieBot.chat ToChat()
+        public chat ToChat()
         {
-            SeuntjieBot.chat tmp = new SeuntjieBot.chat
+            chat tmp = new chat
             {
                 Message = msg,
-                Time = Form1.ToDateTime((time).ToString()),
+                Time = Ui.ToDateTime((time).ToString()),
                 UID = long.Parse(from.user_id),
                 User = from.user_name,
-                Type = (to == null? "" : "pm")
+                Type = (to == null ? "" : "pm")
             };
             return tmp;
         }
         public mdTip tip { get; set; }
     }
-    
+
     public class mdfrom
     {
         public string user_id { get; set; }
@@ -693,5 +487,5 @@ namespace SeuntjieBotExample
         public string user_id { get; set; }
         public string user_name { get; set; }
         public string amount { get; set; }
-    }*/
+    }
 }

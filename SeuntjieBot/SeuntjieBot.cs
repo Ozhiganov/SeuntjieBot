@@ -52,6 +52,13 @@ namespace SeuntjieBot
             return jsonString;
         }
 
+        /// <summary>
+        /// The connecting string used to connect to the DataBase
+        /// </summary>
+        public static string sqlConnectionString = "";
+
+        public string ConnectionString { get { return SeuntjieBot.sqlConnectionString; } set { sqlConnectionString = value; } }
+
         //delegates
         /// <summary>
         /// Delegate for SendMessage Event
@@ -110,6 +117,8 @@ namespace SeuntjieBot
         /// Triggers when commands are loaded or when a command is enabled/disabled
         /// </summary>
         public event dCommandsUpdated CommandsUpdated;
+
+        
 
         //properties
         /// <summary>
@@ -186,6 +195,7 @@ namespace SeuntjieBot
             RainInterval = new TimeSpan(0, 10, 0);
             loadCommands();
             gettotalRains();
+            LastRain = DateTime.Now;
             CommandState.Add("balance", true);
             CommandState.Add("user", true);
             CommandState.Add("btc", true);
@@ -217,9 +227,10 @@ namespace SeuntjieBot
                         string[] tmp = sr.ReadLine().Split('|');
                         Commands.Add(new Command(tmp[0], tmp[1], tmp[2]));
                     }
-                    IntCommandsUpdated();
+                    
                 }
             }
+            IntCommandsUpdated();
         }
 
         /// <summary>
@@ -271,7 +282,7 @@ namespace SeuntjieBot
             {
                 User From = User.FindUser(msg.FromUid);
                 User To = User.FindUser(msg.ToUid);
-                MessageQueue.Enqueue(new SendMessage { Message = string.Format("{4} you have a message from {1}:{0} at {2}: {3}", From.Username, From.Uid, msg.MessageTime, msg.Message, To.Username ), Pm = msg.pm, ToUser = User.FindUser(msg.ToUid) });
+                MessageQueue.Enqueue(new SendMessage { Message = string.Format("{4} you have a message from {1}:{0} at {2}: {3}", From.Username, From.Uid, msg.MessageTime, msg.Message, To.Username ), Pm = true, ToUser = User.FindUser(msg.ToUid) });
                 SQLBASE.Instance().SentMessageForUser(msg);
             }
             if (activeusers.Contains(CurUser))
@@ -416,7 +427,7 @@ namespace SeuntjieBot
             
             List<string> Specifics = new List<string>();
             string[] Msgs = chat.Message.Split(' ');
-            if (Msgs[Msgs.Length - 1] == ("bot") || Msgs[Msgs.Length - 1] == ("seuntjiebot"))
+            if (Msgs[Msgs.Length - 1].ToLower() == ("bot") || Msgs[0].ToLower() == ("seuntjiebot")||Msgs[0].ToLower() == ("bot") || Msgs[Msgs.Length - 1].ToLower() == ("seuntjiebot"))
             {
 
                 //check commands like is around, roll a dice, etc etc.
@@ -665,11 +676,13 @@ namespace SeuntjieBot
             {
                 if (es.Value)
                 {
-                    if (es.Key!="bot")
-                    if (listed)
-                        s += ", ";
-                    s += es.Key;
-                    listed = true;
+                    if (es.Key != "bot")
+                    {
+                        if (listed)
+                            s += ", ";
+                        s += es.Key;
+                        listed = true;
+                    }
                 }
             }
                 foreach (Command s2 in Commands)
@@ -709,25 +722,32 @@ namespace SeuntjieBot
                     { 
                         if (GetBalance != null)
                         {
-                            decimal bal = ((decimal)GetBalance())/SQLBASE.Instance().getTotalUsersBalance();
-                            decimal avgTime = 10m;//getAvgTime();
-                            decimal fraction = (bal / RainPercentage);
-                            decimal intervals = (decimal)(Math.Log((double)fraction) / Math.Log((double)(1m / 0.999m)));
-                            intervals = Math.Ceiling(intervals);
-                            intervals += (0.1m / 0.0001m);
-
-                            if (bal < 0.1m)
-                                intervals = Math.Floor(bal / MinRain);
-
-                            int minutes = (int)(intervals * avgTime);
-                            TimeSpan TimeLeft = new TimeSpan(0, minutes, 0);
-                            if (RainMode == RainType.combination)
+                            decimal bal = ((decimal)GetBalance())-SQLBASE.Instance().getTotalUsersBalance();
+                            if (bal > MinRain)
                             {
-                                MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance for {0}: {1:0.00000000}. Rainjar balance: {5:0.00000000}. Approximately {2} days, {3} hours and {4} minutes", CurUser.Username, CurUser.balance, TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = true, ToUser = CurUser });
+                                decimal avgTime = 10m;//getAvgTime();
+                                decimal fraction = (bal / RainPercentage);
+                                decimal intervals = (decimal)(Math.Log((double)fraction) / Math.Log((double)(1m / 0.999m)));
+                                intervals = Math.Ceiling(intervals);
+                                intervals += (0.1m / 0.0001m);
+
+                                if (bal < 0.1m)
+                                    intervals = Math.Floor(bal / MinRain);
+
+                                int minutes = (int)(intervals * avgTime);
+                                TimeSpan TimeLeft = new TimeSpan(0, minutes, 0);
+                                if (RainMode == RainType.combination)
+                                {
+                                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance for {0}: {1:0.00000000}. Rainjar balance: {5:0.00000000}. Approximately {2} days, {3} hours and {4} minutes", CurUser.Username, CurUser.balance, TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = true, ToUser = CurUser });
+                                }
+                                else
+                                {
+                                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
+                                }
                             }
                             else
                             {
-                                MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
+                                MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar is empty!"), Pm = pm, ToUser = CurUser });
                             }
                             return true;
                         }
@@ -1622,12 +1642,14 @@ namespace SeuntjieBot
                         if (username == c.sCommand)
                         {
                             c.Enabled = false;
+                            IntCommandsUpdated();
                             return false;
                         }
                     }
                     if (CommandState.ContainsKey(username))
                     {
                         CommandState[username] = false;
+                        IntCommandsUpdated();
                         return false;
                     }
                 }
@@ -1787,7 +1809,8 @@ namespace SeuntjieBot
         /// </summary>
         public int OwnID { get; set; }
         int raincounter = 0;
-        DateTime LastRain = DateTime.Now;
+
+        public DateTime LastRain { get; private set; }
         
         int times = 0;
         decimal total = 0;
@@ -2236,7 +2259,7 @@ namespace SeuntjieBot
 
         }
 
-        private void dumperror(string p)
+        public void dumperror(string p)
         {
             //throw new NotImplementedException();
         }
