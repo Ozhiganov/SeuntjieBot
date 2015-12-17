@@ -99,6 +99,7 @@ namespace SeuntjieBot
                 seuntjie.SendRain += seuntjie_SendRain;
                 seuntjie.CommandsUpdated += seuntjie_CommandsUpdated;
                 seuntjie.loadCommands();
+                seuntjie.maxMessage = 250;
                 
             }
 

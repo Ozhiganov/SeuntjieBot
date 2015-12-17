@@ -151,7 +151,11 @@ namespace SeuntjieBot
         /// Determines the minimum chat activity a user must have in the raininterval period to be eligible for rain
         /// </summary>
         public int RainScore { get; set; }
-        
+
+        /// <summary>
+        /// the maximum lenght a message can be
+        /// </summary>
+        public int maxMessage { get; set; }
         
 
         //variables
@@ -190,7 +194,7 @@ namespace SeuntjieBot
             tmrRain = new Timer(tmrRainTick, null, 100,100);
             tmrUsers = new Timer(tmrUsersTick, null, 1000, 1000);
             tmrSend = new Timer(tmrSendTick, null, 10, 10);
-            tmrCurrency = new Timer(tmrCurrencyTick, null, 0, 30000);
+            tmrCurrency = new Timer(tmrCurrencyTick, null, 0, 60000);
             LastSent = DateTime.Now;
             RainInterval = new TimeSpan(0, 10, 0);
             loadCommands();
@@ -424,118 +428,125 @@ namespace SeuntjieBot
         /// <returns></returns>
         private bool CheckBotCommands(bool sent, chat chat, User CurUser, bool pm)
         {
-            
-            List<string> Specifics = new List<string>();
-            string[] Msgs = chat.Message.Split(' ');
-            if (Msgs[Msgs.Length - 1].ToLower() == ("bot") || Msgs[0].ToLower() == ("seuntjiebot")||Msgs[0].ToLower() == ("bot") || Msgs[Msgs.Length - 1].ToLower() == ("seuntjiebot"))
+            if (CommandState["bot"])
             {
+                List<string> Specifics = new List<string>();
+                string[] Msgs = chat.Message.Split(' ');
+                if (Msgs[Msgs.Length - 1].ToLower() == ("bot") || Msgs[0].ToLower() == ("seuntjiebot") || Msgs[0].ToLower() == ("bot") || Msgs[Msgs.Length - 1].ToLower() == ("seuntjiebot"))
+                {
 
-                //check commands like is around, roll a dice, etc etc.
-                if (chat.Message.ToLower().Contains("roll some dice")||chat.Message.ToLower().Contains("roll the dice"))
-                {
-                    int Num = r.Next(1, 21);
-                    sent = true;
-                    MessageQueue.Enqueue(new SendMessage { Message=CurUser.Username+" rolled a "+Num, Pm=pm, ToUser=CurUser });
-                }
-                if ((chat.Message.ToLower().EndsWith("around bot") || chat.Message.ToLower().EndsWith("around seuntjiebot")) && !sent && Msgs.Length >= 4)
-                {
-                    string name = "";
-                    GetName(Msgs.ToList<string>(), 1, out name);
-                    chat.Message = "!s seen "+name;
-                    sent = seen(chat, chat.Message.Split(' ').ToList<string>(), CurUser.UserType == "mod" || CurUser.UserType == "admin" || CurUser.UserType == "op", pm, CurUser);
-                } 
-                
-                //respond negative/positive
-                if (!sent)
-                {
-                    int score = 0;
-                    bool scored = false;
-                    foreach (string s in Msgs)
+                    //check commands like is around, roll a dice, etc etc.
+                    if (chat.Message.ToLower().Contains("roll some dice") || chat.Message.ToLower().Contains("roll the dice"))
                     {
-                        foreach (Words kv in Positives)
-                        {
-
-                            if (s.ToLower() == kv.word)
-                            {
-                                score += kv.score;
-                                scored = true;
-                            }
-
-                        }
-                        foreach (Words kv in Negatives)
-                        {
-
-                            if (s.ToLower() == kv.word)
-                            {
-                                score -= kv.score;
-                                scored = true;
-                            }
-
-                        }
+                        int Num = r.Next(1, 21);
+                        sent = true;
+                        MessageQueue.Enqueue(new SendMessage { Message = CurUser.Username + " rolled a " + Num, Pm = pm, ToUser = CurUser });
+                    }
+                    if ((chat.Message.ToLower().EndsWith("around bot") || chat.Message.ToLower().EndsWith("around seuntjiebot")) && !sent && Msgs.Length >= 4)
+                    {
+                        string name = "";
+                        GetName(Msgs.ToList<string>(), 1, out name);
+                        chat.Message = "!s seen " + name;
+                        sent = seen(chat, chat.Message.Split(' ').ToList<string>(), CurUser.UserType == "mod" || CurUser.UserType == "admin" || CurUser.UserType == "op", pm, CurUser);
                     }
 
-
-                    foreach (string s in Msgs)
+                    //respond negative/positive
+                    if (!sent)
                     {
-                        if (s.ToLower() == "not" || s.ToLower() == "don't" || s.ToLower() == "dont")
+                        int score = 0;
+                        bool scored = false;
+                        foreach (string s in Msgs)
                         {
-                            score = -score;
-                        }
-                    }
-
-                    List<string> Responses = new List<string>();
-                    if (score < 0)
-                    {
-                        foreach (Words x in Negatives)
-                        {
-                            if (-x.score >= score - 1 && -x.score <= score + 1)
+                            foreach (Words kv in Positives)
                             {
-                                Responses.Add(x.ToString());
+
+                                if (s.ToLower() == kv.word)
+                                {
+                                    score += kv.score;
+                                    scored = true;
+                                }
+
+                            }
+                            foreach (Words kv in Negatives)
+                            {
+
+                                if (s.ToLower() == kv.word)
+                                {
+                                    score -= kv.score;
+                                    scored = true;
+                                }
+
                             }
                         }
-                        //respond negative
-                        if (Responses.Count == 0)
+
+
+                        foreach (string s in Msgs)
                         {
-                            int Maxval = 0;
-                            string maxKey = "";
+                            if (s.ToLower() == "not" || s.ToLower() == "don't" || s.ToLower() == "dont")
+                            {
+                                score = -score;
+                            }
+                        }
+
+                        List<string> Responses = new List<string>();
+                        if (score < 0)
+                        {
                             foreach (Words x in Negatives)
                             {
-                                if (x.score > Maxval)
-                                    maxKey = x.ToString();
+                                if (-x.score >= score - 1 && -x.score <= score + 1)
+                                {
+                                    Responses.Add(x.ToString());
+                                }
                             }
-                            Responses.Add(maxKey);
-                        }
-                    }
-                    else if (score > 0)
-                    {
-                        //respond psotive or negative
-                        foreach (Words x in Positives)
-                        {
-                            if (x.score < score)
+                            //respond negative
+                            if (Responses.Count == 0)
                             {
-                                Responses.Add(x.ToString());
+                                int Maxval = 0;
+                                string maxKey = "";
+                                foreach (Words x in Negatives)
+                                {
+                                    if (x.score > Maxval)
+                                        maxKey = x.ToString();
+                                }
+                                Responses.Add(maxKey);
                             }
-
                         }
-                        foreach (Words x in Negatives)
+                        else if (score > 0)
                         {
-                            if (x.score <= 1)
+                            //respond psotive or negative
+                            foreach (Words x in Positives)
                             {
-                                Responses.Add(x.ToString());
+                                if (x.score < score)
+                                {
+                                    Responses.Add(x.ToString());
+                                }
+
                             }
+                            foreach (Words x in Negatives)
+                            {
+                                if (x.score <= 1)
+                                {
+                                    Responses.Add(x.ToString());
+                                }
+                            }
+
                         }
+                        else if (scored)
+                        {
 
+                            Responses.Add("I'm confused");
+                        }
+                        if (Responses.Count > 0)
+                        {
+                            MessageQueue.Enqueue(new SendMessage { Message = Responses[r.Next(0, Responses.Count)].ToString() + " " + CurUser.Username, ToUser = CurUser, Pm = pm });
+                            sent = true;
+                        }
                     }
-                    else if (scored)
-                    {
-
-                        Responses.Add("I'm confused");
-                    }
-                    if (Responses.Count>0)
-                        MessageQueue.Enqueue(new SendMessage { Message = Responses[r.Next(0, Responses.Count)].ToString() + " " + CurUser.Username, ToUser = CurUser, Pm = pm });
                 }
+                return sent;
             }
-            return sent;
+            else
+                return false;
         }
         
         /// <summary>
@@ -554,7 +565,7 @@ namespace SeuntjieBot
             Negatives.Add(new Words("dickface", 3, true, true, true));
             Negatives.Add(new Words("motherfucker", 5, true, false));
             Negatives.Add(new Words("faggot", 2, true, false));
-            Negatives.Add(new Words("pussy", 3, true, true, true));
+            Negatives.Add(new Words("pussy", 4, true, true, true));
             Negatives.Add(new Words("dumbass", 1, true, false));
             Negatives.Add(new Words("idiot", 2, true, false));
             Negatives.Add(new Words("moron", 1, true, false));
@@ -562,8 +573,8 @@ namespace SeuntjieBot
             Negatives.Add(new Words("bitch", 2, true, false));
             Negatives.Add(new Words("retarded", 2, true, true));
             Negatives.Add(new Words("fucktard", 4, true, true, true));
-            Negatives.Add(new Words("whore", 2, true, true, true));
-            Negatives.Add(new Words("slut", 2, true, true, true));
+            Negatives.Add(new Words("whore", 3, true, true, true));
+            Negatives.Add(new Words("slut", 3, true, true, true));
             Negatives.Add(new Words("skank", 2, true, true, true));
             Negatives.Add(new Words("arse ", 1, true, false));
             Negatives.Add(new Words("ass", 1, true, true, true));
@@ -576,12 +587,12 @@ namespace SeuntjieBot
             Negatives.Add(new Words("bollocks", 1, true, true));
             Negatives.Add(new Words("bullshit", 1, true, true));
             Negatives.Add(new Words("buttfucker", 2, true, true, true));
-            Negatives.Add(new Words("choad", 2, true, true, true));
-            Negatives.Add(new Words("cock", 2, true, true, true));
-            Negatives.Add(new Words("cockass", 2, true, false));
-            Negatives.Add(new Words("cockface", 2, true, false));
-            Negatives.Add(new Words("cockfucker", 2, true, false));
-            Negatives.Add(new Words("cuntface", 3, true, false));
+            Negatives.Add(new Words("choad", 3, true, true, true));
+            Negatives.Add(new Words("cock", 3, true, true, true));
+            Negatives.Add(new Words("cockass", 4, true, false));
+            Negatives.Add(new Words("cockface", 4, true, false));
+            Negatives.Add(new Words("cockfucker", 4, true, false));
+            Negatives.Add(new Words("cuntface", 4, true, false));
             Negatives.Add(new Words("damn", 1));
             Negatives.Add(new Words("dickwad", 3, true, true, true));
             Negatives.Add(new Words("dildo", 2, true, true, true));
@@ -1688,10 +1699,18 @@ namespace SeuntjieBot
                 if (To != null)
                 {
                     //add message to DB
-                    LateMessage Msg = new LateMessage { FromUid = (int)CurUser.Uid, id = -1, Message = Message, pm = pm, Sent = false, ToUid = (int)To.Uid, MessageTime= chat.Time };
-                    SQLBASE.Instance().AddMessageForUser(Msg);
-                    MessageQueue.Enqueue(new SendMessage { Message="Saved message for " + To.Username, Pm=pm, ToUser=CurUser });
-                    return true;
+                    if ((DateTime.Now - To.LastSeen).TotalMinutes > 10)
+                    {
+                        LateMessage Msg = new LateMessage { FromUid = (int)CurUser.Uid, id = -1, Message = Message, pm = pm, Sent = false, ToUid = (int)To.Uid, MessageTime = chat.Time };
+                        SQLBASE.Instance().AddMessageForUser(Msg);
+                        MessageQueue.Enqueue(new SendMessage { Message = "Saved message for " + To.Username, Pm = true, ToUser = CurUser });
+                        return true;
+                    }
+                    else
+                    {
+                        MessageQueue.Enqueue(new SendMessage { Message = "Tell " + To.Username +" yourself, " + To.Username+ " seems to be here now", Pm = pm, ToUser = CurUser });
+                        return true;
+                    }
                 }
             }
             return false;
@@ -2007,6 +2026,18 @@ namespace SeuntjieBot
                 if (SendMessage != null)
                 {
                     SendMessage tmp = MessageQueue.Dequeue();
+                    if (tmp.Message.Length > maxMessage)
+                    {
+                        string tmpmsg = tmp.Message.Substring(0, maxMessage);
+                        string tmpmsg2 = tmp.Message.Substring(maxMessage);
+                        tmp.Message = tmpmsg;
+                        SendMessage Newmsg = new SendMessage { Message=tmpmsg2, Pm=tmp.Pm, ToUser=tmp.ToUser };
+                        var items = MessageQueue.ToArray();
+                        MessageQueue.Clear();
+                        MessageQueue.Enqueue(Newmsg);
+                        foreach (var item in items)
+                            MessageQueue.Enqueue(item);
+                    }
                     if (!LogOnly)
                         SendMessage(tmp);
                 }
@@ -2250,18 +2281,45 @@ namespace SeuntjieBot
                 var tmprequest = (HttpWebRequest)HttpWebRequest.Create(tmpURL);
                 HttpWebResponse EmitResponse = (HttpWebResponse)tmprequest.GetResponse();
                 string sEmitResponse = new StreamReader(EmitResponse.GetResponseStream()).ReadToEnd();
-                Fiat = JsonDeserialize<YahooRequest>(sEmitResponse).query.results.rate;
+                dumperror("yahoo" + sEmitResponse);
+                List<YahooPair> tmp = JsonDeserialize<YahooRequest>(sEmitResponse).query.results.rate;
+                //Fiat = JsonDeserialize<YahooRequest>(sEmitResponse).query.results.rate;
+                foreach (YahooPair t in tmp)
+                {
+                    bool found = false;
+                    for (int i =0; i< Fiat.Count; i++)
+                    {
+                        if (t.id == Fiat[i].id)
+                        {
+                            Fiat[i] = t;
+                            found = true;
+                            break;
+                        }
+
+                    }
+                    if (!found)
+                        Fiat.Add(t);
+                }
             }
             catch (Exception e)
             {
-                dumperror(e.Message);
+                dumperror("yahoo"+e.Message);
             }
 
         }
 
         public void dumperror(string p)
         {
-            //throw new NotImplementedException();
+            try
+            {
+                using (StreamWriter sw = File.AppendText("log.txt"))
+                {
+                    sw.WriteLine(p);
+                    sw.Close();
+                }
+            }
+            catch
+            { }
         }
         #endregion
 
