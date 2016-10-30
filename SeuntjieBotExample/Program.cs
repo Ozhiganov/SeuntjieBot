@@ -16,7 +16,7 @@ namespace SeuntjieBotExample
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MagicalDiceExample());
+            Application.Run(new Form2());
         }
     }
 }

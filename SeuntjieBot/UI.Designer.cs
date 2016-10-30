@@ -52,6 +52,8 @@
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.tabPage2 = new System.Windows.Forms.TabPage();
+            this.lblTimeNext = new System.Windows.Forms.Label();
+            this.label14 = new System.Windows.Forms.Label();
             this.label13 = new System.Windows.Forms.Label();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
             this.chkLogOnly = new System.Windows.Forms.CheckBox();
@@ -66,8 +68,6 @@
             this.nudRainTime = new System.Windows.Forms.NumericUpDown();
             this.nudRainPerc = new System.Windows.Forms.NumericUpDown();
             this.nudMinRain = new System.Windows.Forms.NumericUpDown();
-            this.label14 = new System.Windows.Forms.Label();
-            this.lblTimeNext = new System.Windows.Forms.Label();
             this.tmrRainTime = new System.Windows.Forms.Timer(this.components);
             this.panel1.SuspendLayout();
             this.panel2.SuspendLayout();
@@ -319,6 +319,24 @@
             this.tabPage2.Text = "Settings";
             this.tabPage2.UseVisualStyleBackColor = true;
             // 
+            // lblTimeNext
+            // 
+            this.lblTimeNext.AutoSize = true;
+            this.lblTimeNext.Location = new System.Drawing.Point(92, 26);
+            this.lblTimeNext.Name = "lblTimeNext";
+            this.lblTimeNext.Size = new System.Drawing.Size(13, 13);
+            this.lblTimeNext.TabIndex = 37;
+            this.lblTimeNext.Text = "0";
+            // 
+            // label14
+            // 
+            this.label14.AutoSize = true;
+            this.label14.Location = new System.Drawing.Point(1, 26);
+            this.label14.Name = "label14";
+            this.label14.Size = new System.Drawing.Size(88, 13);
+            this.label14.TabIndex = 36;
+            this.label14.Text = "Time to next rain:";
+            // 
             // label13
             // 
             this.label13.AutoSize = true;
@@ -445,6 +463,7 @@
             0,
             0,
             0});
+            this.nudRainTime.ValueChanged += new System.EventHandler(this.nudRainTime_ValueChanged_1);
             // 
             // nudRainPerc
             // 
@@ -458,6 +477,7 @@
             0,
             0,
             0});
+            this.nudRainPerc.ValueChanged += new System.EventHandler(this.nudRainPerc_ValueChanged_1);
             // 
             // nudMinRain
             // 
@@ -472,24 +492,6 @@
             0,
             262144});
             // 
-            // label14
-            // 
-            this.label14.AutoSize = true;
-            this.label14.Location = new System.Drawing.Point(1, 26);
-            this.label14.Name = "label14";
-            this.label14.Size = new System.Drawing.Size(88, 13);
-            this.label14.TabIndex = 36;
-            this.label14.Text = "Time to next rain:";
-            // 
-            // lblTimeNext
-            // 
-            this.lblTimeNext.AutoSize = true;
-            this.lblTimeNext.Location = new System.Drawing.Point(92, 26);
-            this.lblTimeNext.Name = "lblTimeNext";
-            this.lblTimeNext.Size = new System.Drawing.Size(13, 13);
-            this.lblTimeNext.TabIndex = 37;
-            this.lblTimeNext.Text = "0";
-            // 
             // tmrRainTime
             // 
             this.tmrRainTime.Enabled = true;
@@ -500,12 +502,11 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(971, 669);
             this.Controls.Add(this.tabControl1);
             this.Controls.Add(this.lstChat);
             this.Controls.Add(this.panel1);
             this.Name = "Ui";
-            this.Text = "Form1";
+            this.Size = new System.Drawing.Size(971, 669);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();

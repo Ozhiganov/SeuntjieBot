@@ -156,7 +156,8 @@ namespace SeuntjieBot
         /// the maximum lenght a message can be
         /// </summary>
         public int maxMessage { get; set; }
-        
+
+        public char commandchar { get; set; }
 
         //variables
         List<User> activeusers = new List<User>();
@@ -191,12 +192,12 @@ namespace SeuntjieBot
         /// </summary>
         private void Initialize()
         {
-            tmrRain = new Timer(tmrRainTick, null, 100,100);
+            tmrRain = new Timer(tmrRainTick, null, 1000,100);
             tmrUsers = new Timer(tmrUsersTick, null, 1000, 1000);
-            tmrSend = new Timer(tmrSendTick, null, 10, 10);
+            tmrSend = new Timer(tmrSendTick, null, 1000, 10);
             tmrCurrency = new Timer(tmrCurrencyTick, null, 0, 60000);
             LastSent = DateTime.Now;
-            RainInterval = new TimeSpan(0, 10, 0);
+            commandchar = '!';
             loadCommands();
             gettotalRains();
             LastRain = DateTime.Now;
@@ -209,7 +210,10 @@ namespace SeuntjieBot
             CommandState.Add("last", true);
             CommandState.Add("msg", true);
             CommandState.Add("bot", true);
-
+            CommandState.Add("donate", true);
+            CommandState.Add("address", true);
+            CommandState.Add("tx", true);
+            RainInterval = new TimeSpan(0, 10, 0);
             populateNegative();
             populatePositive();
         }
@@ -318,13 +322,14 @@ namespace SeuntjieBot
                 List<string> msgs = chat.Message.Split(' ').ToList<string>();
                 tooquick = CurUser.getCommandscore();
                 bool nots = false;
-                if (msgs[0].ToLower().StartsWith("!") && msgs[0].ToLower() != "!s")
+                string strt = commandchar + "s";
+                if (msgs[0].ToLower().StartsWith(commandchar.ToString()) && msgs[0].ToLower() != strt)
                 {
                     nots = true;
                     msgs.Insert(1, msgs[0].Substring(1));
-                    msgs[0] = "!s";
+                    msgs[0] = strt;
                 }
-                if (msgs[0].ToLower() == "!s")
+                if (msgs[0].ToLower() == strt)
                 {
                     if (tooquick >= 2)
                     {
@@ -1095,7 +1100,7 @@ namespace SeuntjieBot
         /// <param name="pm">Indicates whether the sent message should be in private</param>
         /// <param name="CurUser">The user object of the suser that sent the message</param>
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
-        private bool address(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        private bool updateaddress(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             if (CommandState["address"])
             {
@@ -1716,6 +1721,128 @@ namespace SeuntjieBot
             return false;
         }
 
+        public string DonateAddress { get; set; }
+        public double MonthlyDonateAmount { get; set; }
+        private bool donate(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            if (CommandState["donate"])
+            {
+                addresss tmp = blockchaininfo.GetAddress(DonateAddress);
+                if (tmp != null)
+                {
+                    string msg = string.Format("Donate to: {0}, this month: {1:0.0000}/{2:0.000}Btc ({3:0.000}%)", DonateAddress, ((double)tmp.final_balance) / 100000000.0, MonthlyDonateAmount, ((((double)tmp.final_balance) / 100000000.0) / MonthlyDonateAmount) * 100.0);
+                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool address(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            if (CommandState["address"])
+            {
+                string username = "";
+                int start = GetName(msgs, 2, out username);
+
+                addresss tmp = blockchaininfo.GetAddress(username);
+                if (tmp != null)
+                {
+                    string msg = string.Format("Total in: {0:0.00000000} Total Out: {1:0.00000000} Final balance: {2:0.00000000} Number of tx:{3}",
+                        ((double)tmp.total_received) / 100000000.0, ((double)tmp.total_sent) / 100000000.0, ((double)tmp.final_balance) / 100000000.0, tmp.n_tx);
+                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    return true;
+                }
+                else
+                {
+                    string msg = "address not found";
+                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool addy(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            return address(chat, msgs, ismod, pm, CurUser);
+        }
+
+        private bool transaction(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            if (CommandState["tx"])
+            {
+                string username = "";
+                int start = GetName(msgs, 2, out username);
+
+                transaction tmp = blockchaininfo.GetTx(username);
+
+
+                if (tmp != null)
+                {
+
+                    string msg = "";
+                    if (tmp.lock_time == 0 || tmp.block_height == null)
+                    {
+                        msg = "Transaction Not Confirmed";
+                    }
+                    else
+                    {
+                        latestblock tmp2 = blockchaininfo.GetLatestBlock();
+                        if ((tmp2.height - tmp.block_height) > 100)
+                        {
+                            msg = "100+ Confirmations";
+                        }
+                        else
+                        {
+                            msg = (1 + tmp2.height - tmp.block_height) + " Confirmations";
+                        }
+                    }
+                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    return true;
+                }
+                else
+                {
+                    string msg = "transaction not found";
+                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool tx(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            return transaction(chat, msgs, ismod, pm, CurUser);
+        }
+
+        private bool lastblock(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            latestblock tmp = blockchaininfo.GetLatestBlock();
+            if (tmp!=null)
+            {
+                string msg = string.Format("Last block {0:0.00} Minutes ago, block height: {1} Transaction count: {2}",( DateTime.UtcNow- (new DateTime(1970, 1, 1, 0, 0,0).AddSeconds((Double)tmp.time))).TotalMinutes, tmp.height, tmp.txIndexes.Length );
+                MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                return true;
+            }
+            return false;
+        }
+
+        DateTime DroughtTime = DateTime.Now;
+        private bool drought(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
+        {
+            if (msgs.Count > 2 && ismod)
+            {
+                if (CurUser.UserType == "op")
+                {
+
+                    return false;
+                }
+            }
+            return false;
+        }
+
+
         /// <summary>
         /// Performs the logic for converting to and from different currencies
         /// </summary>
@@ -1818,6 +1945,9 @@ namespace SeuntjieBot
 
 
         #region Rainy Things
+        public delegate bool dExternRequirements(User UserToCheck);
+        public event dExternRequirements CheckExtRainRequirements;
+
         /// <summary>
         /// The mode rains are processed as
         /// </summary>
@@ -1834,6 +1964,8 @@ namespace SeuntjieBot
         int times = 0;
         decimal total = 0;
 
+        Queue<string> LastRains = new Queue<string>();
+        Dictionary<string, DateTime> LastRainsTimes = new Dictionary<string, DateTime>();
         /// <summary>
         /// Creates a list (as an array) of randomly selected, eligible users to be rained on.
         /// </summary>
@@ -1842,11 +1974,17 @@ namespace SeuntjieBot
         User[] getrandomids(int Amount)
         {
             List<User> ValidUsers = new List<User>();
-            foreach (User U in activeusers)
+
+            for (int i = 0; i < activeusers.Count;i++ )
             {
-                if (U.getscore() >RainScore)
+                User U = activeusers[i];
+                if (U.getscore() > RainScore && !LastRains.Contains(U.Username) &&  U.Listed==0)
                 {
-                    ValidUsers.Add(U);
+                    bool val = true;
+                    if (CheckExtRainRequirements != null)
+                        val = CheckExtRainRequirements(U);
+                    if (val)
+                        ValidUsers.Add(U);
                 }
             }
             if (Amount >= ValidUsers.Count)
@@ -1870,23 +2008,38 @@ namespace SeuntjieBot
         /// <param name="State">Unused</param>
         void tmrRainTick(object State)
         {
-            raincounter++;
-            if ((DateTime.Now - LastRain).TotalSeconds > RainInterval.TotalSeconds)
+            if (CommandState.Count > 0)
             {
-                LastRain = DateTime.Now;
-                raincounter = 0;
-                int count = 0;
-                if (CommandState["rain"] && (RainMode == RainType.combination || RainMode == RainType.natural))
+                raincounter++;
+                if ((DateTime.Now - LastRain).TotalSeconds > RainInterval.TotalSeconds)
                 {
-                    foreach (User u in activeusers)
+                    LastRain = DateTime.Now;
+                    if (LastRains.Count > 0)
                     {
-                        if (u.getscore() > 5)
-                            count++;
-                        if (count >= 3)
-                            break;
+                        if (LastRainsTimes.ContainsKey(LastRains.Peek()))
+                        {
+                            if ((DateTime.Now - LastRainsTimes[LastRains.Peek()]).TotalHours >= 2)
+                            {
+                                LastRainsTimes.Remove(LastRains.Peek());
+                                LastRains.Dequeue();
+                            }
+                        }
                     }
-                    if (count >= 3)
-                        Rain(false);
+                    
+                    raincounter = 0;
+                    int count = 0;
+                    if (CommandState["rain"] && (RainMode == RainType.combination || RainMode == RainType.natural))
+                    {
+                        foreach (User u in activeusers)
+                        {
+                            if (u.getscore() > RainScore && u.Listed==0)
+                                count++;
+                            if (count >= 3)
+                                break;
+                        }
+                        if (count >= 3)
+                            Rain(false);
+                    }
                 }
             }
             
@@ -1928,7 +2081,7 @@ namespace SeuntjieBot
                 
                 User[] userstorain = getrandomids(NumUsers);
 
-                if (SiteBalance > AmountPerUser * (decimal)userstorain.Length && balance > AmountPerUser * (decimal)userstorain.Length && userstorain.Length > 0)
+                if (SiteBalance >= AmountPerUser * (decimal)userstorain.Length && balance >= AmountPerUser * (decimal)userstorain.Length && userstorain.Length > 0)
                 {
                     writelog("Rained " + AmountPerUser.ToString("0.0000") + " to " + userstorain[0], User.FindUser("seuntjie"));
                     if (Forced)
@@ -1940,6 +2093,21 @@ namespace SeuntjieBot
                     {
                         if (SendRain(u, (double)AmountPerUser))
                         {
+                            try
+                            {
+                                LastRains.Enqueue(u.Username);
+                                if (LastRainsTimes.ContainsKey(u.Username))
+                                {
+                                    LastRainsTimes[u.Username] = DateTime.Now;
+                                }
+                                else
+                                {
+                                    LastRainsTimes.Add(u.Username, DateTime.Now);
+                                }
+                                if (LastRains.Count > 5)
+                                    LastRains.Dequeue();
+                            }
+                            catch (Exception e) { dumperror(e.ToString()); }
                             MSSQL.Instance().RainAdd((double)AmountPerUser, (int)u.Uid, DateTime.Now, (int)Initiator.Uid, Forced);
                             MessageQueue.Enqueue(new SendMessage { Message = string.Format("Congratulations {0}, {1:0.00000} rain coming your way", u.Username, AmountPerUser), Pm = false, ToUser = u });
                         }
@@ -2281,7 +2449,8 @@ namespace SeuntjieBot
                 var tmprequest = (HttpWebRequest)HttpWebRequest.Create(tmpURL);
                 HttpWebResponse EmitResponse = (HttpWebResponse)tmprequest.GetResponse();
                 string sEmitResponse = new StreamReader(EmitResponse.GetResponseStream()).ReadToEnd();
-                dumperror("yahoo" + sEmitResponse);
+                sEmitResponse = sEmitResponse.Replace("N/A","0");
+                //dumperror("yahoo" + sEmitResponse);
                 List<YahooPair> tmp = JsonDeserialize<YahooRequest>(sEmitResponse).query.results.rate;
                 //Fiat = JsonDeserialize<YahooRequest>(sEmitResponse).query.results.rate;
                 foreach (YahooPair t in tmp)

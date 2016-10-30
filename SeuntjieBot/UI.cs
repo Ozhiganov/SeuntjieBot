@@ -17,7 +17,7 @@ using SeuntjieBot;
 
 namespace SeuntjieBot
 {
-    public abstract partial class Ui : Form
+    public partial class Ui : UserControl
     {
         public SeuntjieBot seuntjie;
         
@@ -34,7 +34,7 @@ namespace SeuntjieBot
             
         }
 
-        protected abstract bool LogIn(string username, string password, string ga);
+        protected virtual bool LogIn(string username, string password, string ga){throw new NotImplementedException();}
         
 
         /// <summary>
@@ -53,11 +53,20 @@ namespace SeuntjieBot
             }
             catch (Exception e)
             {
-
-                string s = milliseconds.ToLower().Replace("z", " ").Replace("t", " ");
-                DateTime dotNetDate = DateTime.Parse(s);
-                dotNetDate = dotNetDate.AddHours((DateTime.Now - DateTime.UtcNow).Hours);
-                return dotNetDate;
+                try
+                {
+                    DateTime tmpDate = DateTime.Parse("1970/01/01 00:00:00", System.Globalization.CultureInfo.InvariantCulture);
+                    tmpDate = tmpDate.AddMilliseconds(long.Parse(milliseconds));
+                    tmpDate += (DateTime.Now - DateTime.UtcNow);
+                    return tmpDate;
+                }
+                catch
+                {
+                    //string s = milliseconds.ToLower().Replace("z", " ").Replace("t", " ");
+                    DateTime dotNetDate = DateTime.Parse(milliseconds);
+                    dotNetDate = dotNetDate.AddHours((DateTime.Now - DateTime.UtcNow).Hours);
+                    return dotNetDate;
+                }
             }
         }
         
@@ -273,6 +282,17 @@ namespace SeuntjieBot
             {
                 lblTimeNext.Text = (seuntjie.RainInterval - (DateTime.Now - seuntjie.LastRain)).ToString();
             }
+        }
+
+        private void nudRainPerc_ValueChanged_1(object sender, EventArgs e)
+        {
+            seuntjie.RainPercentage = nudRainPerc.Value*100m;
+        }
+
+        private void nudRainTime_ValueChanged_1(object sender, EventArgs e)
+        {
+            if (nudRainTime.Value>0m)
+                seuntjie.RainInterval = new TimeSpan(0, (int)nudRainTime.Value, 0);
         }
 
     }

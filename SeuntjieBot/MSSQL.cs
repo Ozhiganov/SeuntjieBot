@@ -30,7 +30,7 @@ namespace SeuntjieBot
                 com.Parameters.AddWithValue("TITLE", ToUpdate.Title);
                 com.Parameters.AddWithValue("NOTE", ToUpdate.Note);
                 com.Parameters.AddWithValue("USERTYPE", ToUpdate.UserType);
-                if (ToUpdate.Uid != -1)
+                //if (ToUpdate.Uid != -1)
                 {
                     com.Parameters.AddWithValue("UID", ToUpdate.Uid);
                 }
