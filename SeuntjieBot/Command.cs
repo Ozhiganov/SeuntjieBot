@@ -18,4 +18,17 @@ namespace SeuntjieBot
             this.Enabled = (Enabled == "1");
         }
     }
+    public class CommandState
+    {
+        public string name { get; set; }
+        public bool enabled { get; set; }
+        public bool show { get; set; }
+        public CommandState(string name, bool enabled, bool show)
+        {
+            this.name = name;
+            this.enabled = enabled;
+            this.show = show;
+        }
+    }
+    
 }

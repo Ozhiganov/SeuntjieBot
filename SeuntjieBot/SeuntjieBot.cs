@@ -64,13 +64,13 @@ namespace SeuntjieBot
         /// Delegate for SendMessage Event
         /// </summary>
         /// <param name="Message">Object containing the message and user information for private messaging</param>
-        public delegate void dSendMessage(SendMessage Message);
+        public delegate void dSendMessage(object sender, SendMessage Message);
 
         /// <summary>
         /// Delegegate for te GetBalance Event, to fetch the current balance of the bot
         /// </summary>
         /// <returns>Current balance of the bot</returns>
-        public delegate double dGetBalance();
+        public delegate double dGetBalance(object sender );
 
         /// <summary>
         /// Delegate for Rain event, for when the bot needs to send rain to a user
@@ -78,19 +78,19 @@ namespace SeuntjieBot
         /// <param name="RainOn">User object to rain on. Should contain any info needed to perform the rain</param>
         /// <param name="Amount">Amount to rain on the user</param>
         /// <returns>Wether rain succeeded or not</returns>
-        public delegate bool dRain(User RainOn, double Amount);
+        public delegate bool dRain(object sender, User RainOn, double Amount);
 
         /// <summary>
         /// Delegate for ActiveUsersChanged event. Triggers if there are significant changes in the active users list
         /// </summary>
         /// <param name="ActiveUsers">List of active and eligible users</param>
-        public delegate void dUpdateActive(User[] ActiveUsers);
+        public delegate void dUpdateActive(object sender, User[] ActiveUsers);
 
         /// <summary>
         /// Delegate for CommandsUpdated event. Triggers if there are significant changes in the Commands list
         /// </summary>
         /// <param name="Commands">List of user commands</param>
-        public delegate void dCommandsUpdated(Command[] Commands);        
+        public delegate void dCommandsUpdated(object sender, Command[] Commands);        
 
         //events
         /// <summary>
@@ -169,8 +169,8 @@ namespace SeuntjieBot
         Timer tmrCurrency;
         Queue<SendMessage> MessageQueue = new Queue<SendMessage>();
         DateTime LastSent = DateTime.Now;
-        Dictionary<string, bool> CommandState = new Dictionary<string, bool>();
-
+        //Dictionary<string, bool> CommandState = new Dictionary<string, bool>();
+        List<CommandState> CommandState = new List<CommandState>();
 
         //constructors
         public SeuntjieBot(int OwnId)
@@ -201,21 +201,31 @@ namespace SeuntjieBot
             loadCommands();
             gettotalRains();
             LastRain = DateTime.Now;
-            CommandState.Add("balance", true);
-            CommandState.Add("user", true);
-            CommandState.Add("btc", true);
-            CommandState.Add("convert", true);
-            CommandState.Add("rained", true);
-            CommandState.Add("rain", false);
-            CommandState.Add("last", true);
-            CommandState.Add("msg", true);
-            CommandState.Add("bot", true);
-            CommandState.Add("donate", true);
-            CommandState.Add("address", true);
-            CommandState.Add("tx", true);
+            CommandState.Add(new CommandState("balance", true,true));
+            CommandState.Add(new CommandState("user", true,true));
+            CommandState.Add(new CommandState("btc", true,true));
+            CommandState.Add(new CommandState("convert", true,true));
+            CommandState.Add(new CommandState("rained", true,true));
+            CommandState.Add(new CommandState("rain", false,false));
+            CommandState.Add(new CommandState("last", true,true));
+            CommandState.Add(new CommandState("msg", true,true));
+            CommandState.Add(new CommandState("bot", true,false));
+            CommandState.Add(new CommandState("donate", true,true));
+            CommandState.Add(new CommandState("address", true,true));
+            CommandState.Add(new CommandState("tx", true, true));
+            CommandState.Add(new CommandState("halfmute", true, false));
             RainInterval = new TimeSpan(0, 10, 0);
             populateNegative();
             populatePositive();
+        }
+
+        bool CheckCommandEnabled(string Name)
+        {
+            if (CommandState.Find(x => x.name.Equals(Name))!=null)
+            {
+                return CommandState.Find(x => x.name.Equals(Name)).enabled;
+            }
+            return false;
         }
 
         //core functions
@@ -290,7 +300,7 @@ namespace SeuntjieBot
             {
                 User From = User.FindUser(msg.FromUid);
                 User To = User.FindUser(msg.ToUid);
-                MessageQueue.Enqueue(new SendMessage { Message = string.Format("{4} you have a message from {1}:{0} at {2}: {3}", From.Username, From.Uid, msg.MessageTime, msg.Message, To.Username ), Pm = true, ToUser = User.FindUser(msg.ToUid) });
+                MessageQueue.Enqueue(new SendMessage { room=chat.room, Message = string.Format("{4} you have a message from {1}:{0} at {2}: {3}", From.Username, From.Uid, msg.MessageTime, msg.Message, To.Username ), Pm = true, ToUser = User.FindUser(msg.ToUid) });
                 SQLBASE.Instance().SentMessageForUser(msg);
             }
             if (activeusers.Contains(CurUser))
@@ -310,7 +320,7 @@ namespace SeuntjieBot
             {
                 // pm + string.Format(" λ WARNING! {0} is a suspected scammer! λ ", CurUser.Username)
                 
-                MessageQueue.Enqueue(new SendMessage { Message=string.Format(" λ WARNING! {0} is a suspected scammer! λ ", CurUser.Username), Pm=false, ToUser=CurUser });
+                MessageQueue.Enqueue(new SendMessage { room=chat.room, Message=string.Format(" λ WARNING! {0} is a suspected scammer! λ ", CurUser.Username), Pm=false, ToUser=CurUser });
                 string[] tmp = { (chat.User), DateTime.Now.ToString() };
                 issued = true;
                 CurUser.Warning = DateTime.Now;
@@ -334,7 +344,7 @@ namespace SeuntjieBot
                     if (tooquick >= 2)
                     {
                         writelog("Too Quick", CurUser);
-                        MessageQueue.Enqueue(new SendMessage { Message = "Please wait a minute before making another request", Pm = true, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room=chat.room, Message = "Please wait a minute before making another request", Pm = true, ToUser = CurUser });
                     }
 
                     else if (tooquick < 2 && msgs.Count >= 2)
@@ -345,7 +355,7 @@ namespace SeuntjieBot
                             if (msgs[1].ToLower() == (curom.sCommand.ToLower()) && curom.Enabled)
                             {
                                 if (!LogOnly)
-                                    MessageQueue.Enqueue(new SendMessage { Message = curom.Response, ToUser = CurUser, Pm = pm });
+                                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = curom.Response, ToUser = CurUser, Pm = pm });
                                 sent = true;
                                 break;
                             }
@@ -358,11 +368,11 @@ namespace SeuntjieBot
                                 if (true)
                                 {
                                     sent = true;
-                                    MessageQueue.Enqueue(new SendMessage { Message = Msg, Pm = pm, ToUser = CurUser });
+                                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = Msg, Pm = pm, ToUser = CurUser });
                                 }
                                 else
                                 {
-                                    MessageQueue.Enqueue(new SendMessage { Message = Msg, Pm = true, ToUser = CurUser });
+                                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = Msg, Pm = true, ToUser = CurUser });
                                     sent = true;
                                 }
                             }
@@ -386,7 +396,7 @@ namespace SeuntjieBot
                             {
                                 comm = true;
                                 sent = true;
-                                MessageQueue.Enqueue(new SendMessage { Message = CommandString(), ToUser = CurUser, Pm = true });
+                                MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = CommandString(), ToUser = CurUser, Pm = true });
                             }
                             
                         }
@@ -433,7 +443,7 @@ namespace SeuntjieBot
         /// <returns></returns>
         private bool CheckBotCommands(bool sent, chat chat, User CurUser, bool pm)
         {
-            if (CommandState["bot"])
+            if (CheckCommandEnabled("bot"))
             {
                 List<string> Specifics = new List<string>();
                 string[] Msgs = chat.Message.Split(' ');
@@ -445,7 +455,7 @@ namespace SeuntjieBot
                     {
                         int Num = r.Next(1, 21);
                         sent = true;
-                        MessageQueue.Enqueue(new SendMessage { Message = CurUser.Username + " rolled a " + Num, Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = CurUser.Username + " rolled a " + Num, Pm = pm, ToUser = CurUser });
                     }
                     if ((chat.Message.ToLower().EndsWith("around bot") || chat.Message.ToLower().EndsWith("around seuntjiebot")) && !sent && Msgs.Length >= 4)
                     {
@@ -543,7 +553,7 @@ namespace SeuntjieBot
                         }
                         if (Responses.Count > 0)
                         {
-                            MessageQueue.Enqueue(new SendMessage { Message = Responses[r.Next(0, Responses.Count)].ToString() + " " + CurUser.Username, ToUser = CurUser, Pm = pm });
+                            MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = Responses[r.Next(0, Responses.Count)].ToString() + " " + CurUser.Username, ToUser = CurUser, Pm = pm });
                             sent = true;
                         }
                     }
@@ -688,15 +698,15 @@ namespace SeuntjieBot
 
             string s = "Commands: ";
             bool listed = false;
-            foreach (KeyValuePair<string, bool> es in CommandState )
+            foreach (CommandState es in CommandState)
             {
-                if (es.Value)
+                if (es.enabled)
                 {
-                    if (es.Key != "bot")
+                    if (es.show)
                     {
                         if (listed)
                             s += ", ";
-                        s += es.Key;
+                        s += es.name;
                         listed = true;
                     }
                 }
@@ -725,20 +735,20 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool balance(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["balance"])
+            if (CheckCommandEnabled("balance"))
             {
                 try
                 {
                     if (RainMode == RainType.user)
                     {
-                        MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance for {0}: {1:0.00000000}.", CurUser.Username , CurUser.balance), Pm = true, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("Rainjar balance for {0}: {1:0.00000000}.", CurUser.Username, CurUser.balance), Pm = true, ToUser = CurUser });
                         return true;
                     }
                     else
                     { 
                         if (GetBalance != null)
                         {
-                            decimal bal = ((decimal)GetBalance())-SQLBASE.Instance().getTotalUsersBalance();
+                            decimal bal = ((decimal)GetBalance(this ))-SQLBASE.Instance().getTotalUsersBalance();
                             if (bal > MinRain)
                             {
                                 decimal avgTime = 10m;//getAvgTime();
@@ -754,16 +764,16 @@ namespace SeuntjieBot
                                 TimeSpan TimeLeft = new TimeSpan(0, minutes, 0);
                                 if (RainMode == RainType.combination)
                                 {
-                                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance for {0}: {1:0.00000000}. Rainjar balance: {5:0.00000000}. Approximately {2} days, {3} hours and {4} minutes", CurUser.Username, CurUser.balance, TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = true, ToUser = CurUser });
+                                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("Rainjar balance for {0}: {1:0.00000000}. Rainjar balance: {5:0.00000000}. Approximately {2} days, {3} hours and {4} minutes", CurUser.Username, CurUser.balance, TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = true, ToUser = CurUser });
                                 }
                                 else
                                 {
-                                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
+                                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("Rainjar balance: {3:0.00000000}. Approximately {0} days, {1} hours and {2} minutes", TimeLeft.Days, TimeLeft.Hours, TimeLeft.Minutes, bal), Pm = pm, ToUser = CurUser });
                                 }
                             }
                             else
                             {
-                                MessageQueue.Enqueue(new SendMessage { Message = string.Format("Rainjar is empty!"), Pm = pm, ToUser = CurUser });
+                                MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("Rainjar is empty!"), Pm = pm, ToUser = CurUser });
                             }
                             return true;
                         }
@@ -795,7 +805,7 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool user(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["user"])
+            if (CheckCommandEnabled("user"))
             {
                 string username = "";
                 GetName(msgs, 2, out username);
@@ -819,8 +829,8 @@ namespace SeuntjieBot
 
                     if (tmp == null)
                     {
-                        writelog("requested user: " + username + ". User not found", CurUser); 
-                        MessageQueue.Enqueue(new SendMessage { Message = "User not found.", ToUser = CurUser, Pm = pm });
+                        writelog("requested user: " + username + ". User not found", CurUser);
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "User not found.", ToUser = CurUser, Pm = pm });
                     }
                     else
                     {
@@ -841,7 +851,7 @@ namespace SeuntjieBot
                                 tmp.Uid);
                         writelog("requested user: " + username, CurUser);
                         message = " λ " + message + " λ ";
-                        MessageQueue.Enqueue(new SendMessage { Message = message, ToUser = CurUser, Pm = username.ToLower() != CurUser.Username.ToLower() ? pm : true });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = message, ToUser = CurUser, Pm = username.ToLower() != CurUser.Username.ToLower() ? pm : true });
 
                         return true;
                     }
@@ -864,7 +874,11 @@ namespace SeuntjieBot
             if (ismod)
             {
                 string username = "";
+                string time = "";
                 int start = GetName(msgs, 2, out username);
+                start = GetName(msgs, start, out time);
+                double dtime = 0;
+                double.TryParse(time,out dtime);
                 string reason = BuildString(msgs, start);
                 writelog("Redlisted user " + username + " for reason: " + reason, CurUser);
 
@@ -888,10 +902,17 @@ namespace SeuntjieBot
                     {
                         activeusers[activeusers.IndexOf(tmp)] = tmp;
                     }
-                    MSSQL.Instance().Redlist(tmp, reason);
+                    MSSQL.Instance().Redlist(new ListItem() {  active=true, 
+                        redlist=true, 
+                        mutingid=(int)CurUser.Uid,
+                        oid=-1,
+                        reason=reason,
+                        time=DateTime.Now,
+                        until = DateTime.Now.AddHours( dtime>0?dtime:24*365.25 ),
+                        uid=(int)tmp.Uid});
 
 
-                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been redlisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("{0} has been redlisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
                 
@@ -913,7 +934,11 @@ namespace SeuntjieBot
             if (ismod)
             {
                 string username = "";
+                string time = "";
                 int start = GetName(msgs, 2, out username);
+                start = GetName(msgs, start, out time);
+                double dtime = 0;
+                double.TryParse(time, out dtime);
                 string reason = BuildString(msgs, start);
                 writelog("Blacklisted user " + username + " for reason: " + reason, CurUser);
 
@@ -938,9 +963,19 @@ namespace SeuntjieBot
                         activeusers[activeusers.IndexOf(tmp)] = tmp;
                     }
                     //update to DB
-                    MSSQL.Instance().BlackList(tmp, reason);
+                    MSSQL.Instance().Redlist(new ListItem()
+                    {
+                        active = true,
+                        redlist = false,
+                        mutingid = (int)CurUser.Uid,
+                        oid = -1,
+                        reason = reason,
+                        time = DateTime.Now,
+                        until = DateTime.Now.AddHours(dtime > 0 ? dtime : 24 * 365.25),
+                        uid = (int)tmp.Uid
+                    });
 
-                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been blacklisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("{0} has been blacklisted for {1}", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
 
@@ -989,7 +1024,7 @@ namespace SeuntjieBot
                     MSSQL.Instance().DeRedlist(tmp);
 
 
-                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been removed from the red list", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("{0} has been removed from the red list", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
 
@@ -1038,7 +1073,7 @@ namespace SeuntjieBot
                     //update to DB
                     MSSQL.Instance().DeBlacklist(tmp);
 
-                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("{0} has been removed from the blacklist", tmp.Username, reason), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("{0} has been removed from the blacklist", tmp.Username, reason), Pm = pm, ToUser = CurUser });
                     return true;
                 }
 
@@ -1084,7 +1119,7 @@ namespace SeuntjieBot
                         case 2: Message = "Blacklisted: " + tmp.GetBlackReason() + ". "; break;
                     }
 
-                    MessageQueue.Enqueue(new SendMessage { Message = Message, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = Message, Pm = pm, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1102,7 +1137,7 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool updateaddress(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["address"])
+            if (CheckCommandEnabled("address"))
             {
                 if (msgs.Count>2)
                 {
@@ -1122,11 +1157,11 @@ namespace SeuntjieBot
 
                         CurUser.Address = msgs[2];
                         CurUser.updateuser();
-                        MessageQueue.Enqueue(new SendMessage { Message = "@" + CurUser.Username + " Updated", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "@" + CurUser.Username + " Updated", Pm = pm, ToUser = CurUser });
                     }
                     else
                     {
-                        MessageQueue.Enqueue(new SendMessage { Message = "@" + CurUser.Username + " Invalid address. Try again in a minute", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "@" + CurUser.Username + " Invalid address. Try again in a minute", Pm = pm, ToUser = CurUser });
                     }
                     return true;           
                 }
@@ -1145,7 +1180,7 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool title(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["user"] && msgs.Count > 3 && ismod)
+            if (CheckCommandEnabled("user") && msgs.Count > 3 && ismod)
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -1166,7 +1201,7 @@ namespace SeuntjieBot
                 {
                     tmp.Title = title;
                     tmp.updateuser();
-                    MessageQueue.Enqueue(new SendMessage { Message="@"+tmp.Username+" updated", Pm=pm, ToUser=CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1184,7 +1219,7 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool note(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["user"] && msgs.Count > 3 && ismod)
+            if (CheckCommandEnabled("user") && msgs.Count > 3 && ismod)
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -1205,7 +1240,7 @@ namespace SeuntjieBot
                 {
                     tmp.Note = note;
                     tmp.updateuser();
-                    MessageQueue.Enqueue(new SendMessage { Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
                     return true;
                 }           
             }
@@ -1250,7 +1285,7 @@ namespace SeuntjieBot
                     {
                         tmp.UserType = note;
                         tmp.updateuser();
-                        MessageQueue.Enqueue(new SendMessage { Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "@" + tmp.Username + " updated", Pm = pm, ToUser = CurUser });
                         return true;
                     }   
                 }
@@ -1269,12 +1304,12 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool halfmute(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["halfmute"] && ismod)
+            if (CheckCommandEnabled("halfmute") && ismod)
             {
                 if (ismod)
                 {
                     bhalfmute = true;
-                    MessageQueue.Enqueue(new SendMessage { Message = "Bot will now only respond to mods.", Pm = false, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Bot will now only respond to mods.", Pm = false, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1292,9 +1327,10 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool btc(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["btc"])
+            if (CheckCommandEnabled("btc"))
             {
-                MessageQueue.Enqueue(new SendMessage { Message = "BTC/USD last trade price according to bitcoinaverage.com: " + mbtc.ToString("0.00"), Pm = pm, ToUser = CurUser });
+                CryptoPriceCore.YahooPair tmppair = Prices.GetFullDetails("btc", "usd", 1);
+                MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "BTC/USD last trade price according to bitcoinaverage.com: " + tmppair.Rate.ToString("0.00"), Pm = pm, ToUser = CurUser });
                 return true;
             }
             return false;
@@ -1311,7 +1347,7 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool convert(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["convert"])
+            if (CheckCommandEnabled("convert"))
             {
                 if (msgs.Count >= 5)
                 {
@@ -1324,8 +1360,13 @@ namespace SeuntjieBot
                     double iamount = 0;
                     if (double.TryParse(amount, out iamount))
                     {
+
                         string s = Convert(from, to, iamount);
-                        MessageQueue.Enqueue(new SendMessage { Message = s, ToUser = CurUser, Pm = pm });
+                        string frmName = Prices.Names.ContainsKey(from.ToUpper()) ? Prices.Names[from.ToUpper()] : from;
+                        string toName = Prices.Names.ContainsKey(to.ToUpper()) ? Prices.Names[to.ToUpper()] : to;
+                        CryptoPriceCore.YahooPair tmppair = Prices.GetFullDetails(from, to, iamount);
+                        s = string.Format("{0} {1} = {2} {3}", amount, frmName, tmppair.Rate, toName);
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = s, ToUser = CurUser, Pm = pm });
                         return true;
                     }
                 }
@@ -1337,14 +1378,18 @@ namespace SeuntjieBot
                     int i = GetName(msgs, 2, out from);
                     i = GetName(msgs, i, out to);
                     string s = Convert(from, to, 1);
-                    MessageQueue.Enqueue(new SendMessage { Message = s, ToUser = CurUser, Pm = pm });
+                    string frmName = Prices.Names.ContainsKey(from.ToUpper()) ? Prices.Names[from.ToUpper()] : from;
+                    string toName = Prices.Names.ContainsKey(to.ToUpper()) ? Prices.Names[to.ToUpper()] : to;
+                    CryptoPriceCore.YahooPair tmppair = Prices.GetFullDetails(from, to, 1);
+                    s = string.Format("{0} {1} = {2} {3}", 1, frmName, tmppair.Rate, toName);
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = s, ToUser = CurUser, Pm = pm });
                         
                     return true;
 
                 }
 
 
-                MessageQueue.Enqueue(new SendMessage { Message = "Convert help: !s convert [from currency] [to currency] (amount)   []=required, ()=optional", Pm = pm, ToUser = CurUser });
+                MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Convert help: !s convert [from currency] [to currency] (amount)   []=required, ()=optional", Pm = pm, ToUser = CurUser });
                 return true;
                 
             }
@@ -1402,7 +1447,7 @@ namespace SeuntjieBot
                 if (ismod)
                 {
                     bhalfmute = false;
-                    MessageQueue.Enqueue(new SendMessage { Message = "Bot responding to all.", Pm = false, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Bot responding to all.", Pm = false, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1420,9 +1465,9 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool rained(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["rained"])
+            if (CheckCommandEnabled("rained"))
             {
-                MessageQueue.Enqueue(new SendMessage  { Message=string.Format("Times rained: {0}, Total Rained: {1:0.00000000}"), ToUser=CurUser, Pm=pm });
+                MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("Times rained: {0}, Total Rained: {1:0.00000000}"), ToUser = CurUser, Pm = pm });
                 return true;
             }
             return false;
@@ -1455,12 +1500,12 @@ namespace SeuntjieBot
                         if ((decimal)CurUser.balance>Amount)
                         {
                             SQLBASE.Instance().ReduceUserBalance(CurUser.Uid, Amount);
-                            MessageQueue.Enqueue(new SendMessage { Message = "Added " + Amount + " to natural rain clouds.", Pm = pm, ToUser = CurUser });
+                            MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Added " + Amount + " to natural rain clouds.", Pm = pm, ToUser = CurUser });
                             return true;
                         }
                         else
                         {
-                            MessageQueue.Enqueue(new SendMessage { Message = "Insufficient balance: " + CurUser.balance, Pm = pm, ToUser = CurUser });
+                            MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Insufficient balance: " + CurUser.balance, Pm = pm, ToUser = CurUser });
                             return true;
                         }
                     }
@@ -1473,19 +1518,19 @@ namespace SeuntjieBot
                         }
                         else
                         {
-                            MessageQueue.Enqueue(new SendMessage { Message = "Insufficient balance: " + CurUser.balance, Pm = pm, ToUser = CurUser });
+                            MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Insufficient balance: " + CurUser.balance, Pm = pm, ToUser = CurUser });
                             return true;
                         }
                     }
                     else
                     {
-                        MessageQueue.Enqueue(new SendMessage { Message="Invalid Number of users! "+Number, Pm=pm, ToUser=CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Invalid Number of users! " + Number, Pm = pm, ToUser = CurUser });
                         return true;
                     }
                 }
                 else
                 {
-                    MessageQueue.Enqueue(new SendMessage { Message = "Invalid rain amount! " +amount, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Invalid rain amount! " + amount, Pm = pm, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1512,7 +1557,7 @@ namespace SeuntjieBot
         /// <returns>boolean value showing whether the bot sent a response or not</returns>
         private bool last(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["last"])
+            if (CheckCommandEnabled("last"))
             {
                 string user = "";
                 int start = GetName(msgs, 2, out user);
@@ -1531,7 +1576,7 @@ namespace SeuntjieBot
                     DateTime tmpDate = tmp.LastSeen;
                     if (tmp.Uid == CurUser.Uid)
                     {
-                        MessageQueue.Enqueue(new SendMessage { Message = "You're very forgetfull aren't you " + user + "?", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Do you need a mirror " + user + "?", Pm = pm, ToUser = CurUser });
                         return true;
                     }
                     else
@@ -1548,7 +1593,7 @@ namespace SeuntjieBot
                             s = "u:" + user + " was last seen " + (ago.TotalDays >= 1 ? ago.Days + " Days, " : "") + (ago.TotalHours > 0 ? ago.Hours + " hours, " : "") + (ago.TotalMinutes > 0 ? ago.Minutes + " Minutes " : "") + "ago, at " + tmpDate.ToString("yyyy/MM/dd HH:mm") + " UTC";
                             //s = string.Format("U:{0} was last seen {2} hours and {3} minutes ago at {1} GMT", user, tmpDate, (int)ago.TotalHours, ago.Minutes);
                         }
-                        MessageQueue.Enqueue(new SendMessage { Message = s, Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = s, Pm = pm, ToUser = CurUser });
                         return true;
                         
                     }
@@ -1556,7 +1601,7 @@ namespace SeuntjieBot
                 }
                 else
                 {
-                    MessageQueue.Enqueue(new SendMessage { Message = string.Format("I haven't seen U:{0} yet", user), Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("I haven't seen U:{0} yet", user), Pm = pm, ToUser = CurUser });
                     return true;
                 }
                 
@@ -1607,9 +1652,10 @@ namespace SeuntjieBot
                             return false;
                         }
                     }
-                    if (CommandState.ContainsKey(username))
+                    if (CommandState.Find(x => x.name.Equals(username))!=null)
                     {
-                        CommandState[username] = true;
+                        CommandState tmp = CommandState.Find(x => x.name.Equals(username));
+                        tmp.enabled = true;
                         IntCommandsUpdated();
                         return false;
                     }
@@ -1626,11 +1672,12 @@ namespace SeuntjieBot
                 List<Command> Commands = new List<Command>();
                 this.Commands.CopyTo(tmpComs);
                 Commands = tmpComs.ToList();
-                foreach (KeyValuePair<string, bool> x in CommandState)
+                foreach (CommandState x in CommandState)
                 {
-                    Commands.Add(new Command(x.Key, "", (x.Value ? "1" : "0")));
+                    Commands.Add(new Command(x.name,"", x.enabled?"1":"0"));
+                    //Commands.Add(new Command(x.Key, "", (x.Value ? "1" : "0")));
                 }
-                CommandsUpdated(Commands.ToArray());
+                CommandsUpdated(this, Commands.ToArray());
             }
         }
 
@@ -1662,9 +1709,10 @@ namespace SeuntjieBot
                             return false;
                         }
                     }
-                    if (CommandState.ContainsKey(username))
+                    if (CommandState.Find(x => x.name.Equals(username)) != null)
                     {
-                        CommandState[username] = false;
+                        CommandState tmp = CommandState.Find(x => x.name.Equals(username));
+                        tmp.enabled = false;
                         IntCommandsUpdated();
                         return false;
                     }
@@ -1708,12 +1756,12 @@ namespace SeuntjieBot
                     {
                         LateMessage Msg = new LateMessage { FromUid = (int)CurUser.Uid, id = -1, Message = Message, pm = pm, Sent = false, ToUid = (int)To.Uid, MessageTime = chat.Time };
                         SQLBASE.Instance().AddMessageForUser(Msg);
-                        MessageQueue.Enqueue(new SendMessage { Message = "Saved message for " + To.Username, Pm = true, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Saved message for " + To.Username, Pm = true, ToUser = CurUser });
                         return true;
                     }
                     else
                     {
-                        MessageQueue.Enqueue(new SendMessage { Message = "Tell " + To.Username +" yourself, " + To.Username+ " seems to be here now", Pm = pm, ToUser = CurUser });
+                        MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = "Tell " + To.Username + " yourself, " + To.Username + " seems to be here now", Pm = pm, ToUser = CurUser });
                         return true;
                     }
                 }
@@ -1725,13 +1773,13 @@ namespace SeuntjieBot
         public double MonthlyDonateAmount { get; set; }
         private bool donate(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["donate"])
+            if (CheckCommandEnabled("donate"))
             {
                 addresss tmp = blockchaininfo.GetAddress(DonateAddress);
                 if (tmp != null)
                 {
                     string msg = string.Format("Donate to: {0}, this month: {1:0.0000}/{2:0.000}Btc ({3:0.000}%)", DonateAddress, ((double)tmp.final_balance) / 100000000.0, MonthlyDonateAmount, ((((double)tmp.final_balance) / 100000000.0) / MonthlyDonateAmount) * 100.0);
-                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = msg, Pm = pm, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1740,7 +1788,7 @@ namespace SeuntjieBot
 
         private bool address(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["address"])
+            if (CheckCommandEnabled("address"))
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -1750,13 +1798,13 @@ namespace SeuntjieBot
                 {
                     string msg = string.Format("Total in: {0:0.00000000} Total Out: {1:0.00000000} Final balance: {2:0.00000000} Number of tx:{3}",
                         ((double)tmp.total_received) / 100000000.0, ((double)tmp.total_sent) / 100000000.0, ((double)tmp.final_balance) / 100000000.0, tmp.n_tx);
-                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = msg, Pm = pm, ToUser = CurUser });
                     return true;
                 }
                 else
                 {
                     string msg = "address not found";
-                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = msg, Pm = pm, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1770,7 +1818,7 @@ namespace SeuntjieBot
 
         private bool transaction(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
-            if (CommandState["tx"])
+            if (CheckCommandEnabled("tx"))
             {
                 string username = "";
                 int start = GetName(msgs, 2, out username);
@@ -1798,13 +1846,13 @@ namespace SeuntjieBot
                             msg = (1 + tmp2.height - tmp.block_height) + " Confirmations";
                         }
                     }
-                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = msg, Pm = pm, ToUser = CurUser });
                     return true;
                 }
                 else
                 {
                     string msg = "transaction not found";
-                    MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                    MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = msg, Pm = pm, ToUser = CurUser });
                     return true;
                 }
             }
@@ -1819,10 +1867,11 @@ namespace SeuntjieBot
         private bool lastblock(chat chat, List<string> msgs, bool ismod, bool pm, User CurUser)
         {
             latestblock tmp = blockchaininfo.GetLatestBlock();
+            //UnconfirmedTx txs = blockchaininfo.GetUnconfirmed();
             if (tmp!=null)
             {
-                string msg = string.Format("Last block {0:0.00} Minutes ago, block height: {1} Transaction count: {2}",( DateTime.UtcNow- (new DateTime(1970, 1, 1, 0, 0,0).AddSeconds((Double)tmp.time))).TotalMinutes, tmp.height, tmp.txIndexes.Length );
-                MessageQueue.Enqueue(new SendMessage { Message = msg, Pm = pm, ToUser = CurUser });
+                string msg = string.Format("Last block {0:0.00} Minutes ago, block height: {1} Transaction count: {2}.",( DateTime.UtcNow- (new DateTime(1970, 1, 1, 0, 0,0).AddSeconds((Double)tmp.time))).TotalMinutes, tmp.height, tmp.txIndexes.Length);
+                MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = msg, Pm = pm, ToUser = CurUser });
                 return true;
             }
             return false;
@@ -1935,8 +1984,9 @@ namespace SeuntjieBot
             }
             if (!found)
             {
-                if (CommandState.ContainsKey(CommandName))
-                    CommandState[CommandName] = Enabled;
+                //CommandState.Find(x => x.Equals(
+                if (CheckCommandEnabled(CommandName))
+                    CommandState.Find(x => x.name.Equals(CommandName)).enabled = Enabled;
             }
             SaveCommands();
             IntCommandsUpdated();
@@ -1945,7 +1995,7 @@ namespace SeuntjieBot
 
 
         #region Rainy Things
-        public delegate bool dExternRequirements(User UserToCheck);
+        public delegate bool dExternRequirements(object sender, User UserToCheck);
         public event dExternRequirements CheckExtRainRequirements;
 
         /// <summary>
@@ -1982,7 +2032,7 @@ namespace SeuntjieBot
                 {
                     bool val = true;
                     if (CheckExtRainRequirements != null)
-                        val = CheckExtRainRequirements(U);
+                        val = CheckExtRainRequirements(this, U);
                     if (val)
                         ValidUsers.Add(U);
                 }
@@ -2028,7 +2078,7 @@ namespace SeuntjieBot
                     
                     raincounter = 0;
                     int count = 0;
-                    if (CommandState["rain"] && (RainMode == RainType.combination || RainMode == RainType.natural))
+                    if (CheckCommandEnabled("rain") && (RainMode == RainType.combination || RainMode == RainType.natural))
                     {
                         foreach (User u in activeusers)
                         {
@@ -2050,7 +2100,7 @@ namespace SeuntjieBot
         {
             if (GetBalance != null)
             {
-                Rain(Forced, 1, SetRainAmount((decimal)GetBalance() ), User.FindUser( OwnID ));
+                Rain(Forced, 1, SetRainAmount((decimal)GetBalance(this) ), User.FindUser( OwnID ));
             }
             
         }
@@ -2064,7 +2114,7 @@ namespace SeuntjieBot
             if (GetBalance != null && SendRain!=null)
             {
                 decimal balance = 0;
-                decimal SiteBalance = (decimal)GetBalance();
+                decimal SiteBalance = (decimal)GetBalance(this);
                 if (Forced && (RainMode == RainType.combination || RainMode == RainType.user))
                 {
                     balance = (decimal)Initiator.balance;
@@ -2091,7 +2141,7 @@ namespace SeuntjieBot
                     
                     foreach (User u in userstorain)
                     {
-                        if (SendRain(u, (double)AmountPerUser))
+                        if (SendRain(this, u, (double)AmountPerUser))
                         {
                             try
                             {
@@ -2109,7 +2159,7 @@ namespace SeuntjieBot
                             }
                             catch (Exception e) { dumperror(e.ToString()); }
                             MSSQL.Instance().RainAdd((double)AmountPerUser, (int)u.Uid, DateTime.Now, (int)Initiator.Uid, Forced);
-                            MessageQueue.Enqueue(new SendMessage { Message = string.Format("Congratulations {0}, {1:0.00000} rain coming your way", u.Username, AmountPerUser), Pm = false, ToUser = u });
+                            //MessageQueue.Enqueue(new SendMessage { room = chat.room, Message = string.Format("Congratulations {0}, {1:0.00000} rain coming your way", u.Username, AmountPerUser), Pm = false, ToUser = u });
                         }
                     }
                 }
@@ -2199,7 +2249,7 @@ namespace SeuntjieBot
                         string tmpmsg = tmp.Message.Substring(0, maxMessage);
                         string tmpmsg2 = tmp.Message.Substring(maxMessage);
                         tmp.Message = tmpmsg;
-                        SendMessage Newmsg = new SendMessage { Message=tmpmsg2, Pm=tmp.Pm, ToUser=tmp.ToUser };
+                        SendMessage Newmsg = new SendMessage { room = tmp.room, Message = tmpmsg2, Pm = tmp.Pm, ToUser = tmp.ToUser };
                         var items = MessageQueue.ToArray();
                         MessageQueue.Clear();
                         MessageQueue.Enqueue(Newmsg);
@@ -2207,7 +2257,7 @@ namespace SeuntjieBot
                             MessageQueue.Enqueue(item);
                     }
                     if (!LogOnly)
-                        SendMessage(tmp);
+                        SendMessage(this, tmp);
                 }
             }
         }
@@ -2258,7 +2308,7 @@ namespace SeuntjieBot
             }
             if (changed && ActiveUsersChanged!=null)
             {
-                ActiveUsersChanged(activeusers.ToArray());
+                ActiveUsersChanged(this, activeusers.ToArray());
             }
 
         }
@@ -2283,16 +2333,23 @@ namespace SeuntjieBot
         /// <returns></returns>
         bool checkwarning(User CurUser)
         {
-            if (CurUser.Warning == null)
-                return false;
-            else
+            try
             {
-                if ((DateTime.Now - CurUser.Warning).TotalSeconds > 600)
-                {
+                if (CurUser.Warning == null)
                     return false;
-                }
                 else
-                    return true;
+                {
+                    if ((DateTime.Now - CurUser.lastwarning).TotalSeconds > 600)
+                    {
+                        return false;
+                    }
+                    else
+                        return true;
+                }
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -2337,7 +2394,7 @@ namespace SeuntjieBot
             }
             if (Changed && ActiveUsersChanged!=null)
             {
-                ActiveUsersChanged(activeusers.ToArray());
+                ActiveUsersChanged(this, activeusers.ToArray());
             }
         }
         #endregion
@@ -2394,6 +2451,7 @@ namespace SeuntjieBot
         /// <returns>Message ready string of the altcoin prices</returns>
         string GetCurrency(string Currency)
         {
+            return Prices.GetCurrency(Currency);
             try
             {
                 PoloniexPair tmp = (PoloniexPair)Currencies.GetType().GetProperty("BTC_" + Currency.ToUpper()).GetValue(Currencies, null);
@@ -2412,13 +2470,14 @@ namespace SeuntjieBot
         poloniexMarket Currencies;
         List<YahooPair> Fiat = new List<YahooPair>();
         private decimal mbtc;
+        CryptoPriceCore.GetPrices Prices = new CryptoPriceCore.GetPrices();
         /// <summary>
         /// Get the prices for btc/usd, btc/altcoin and usd/fiat from exchanges to be used in the convert command
         /// </summary>
         void getprices()
         {
-
-            try
+            Prices.getprices();
+            /*try
             {
                 var tmprequest = (HttpWebRequest)HttpWebRequest.Create("https://poloniex.com/public?command=returnTicker");
                 HttpWebResponse EmitResponse = (HttpWebResponse)tmprequest.GetResponse();
@@ -2473,7 +2532,7 @@ namespace SeuntjieBot
             catch (Exception e)
             {
                 dumperror("yahoo"+e.Message);
-            }
+            }*/
 
         }
 

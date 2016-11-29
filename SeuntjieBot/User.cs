@@ -22,6 +22,7 @@ namespace SeuntjieBot
         private long _id = -1;
         public long Uid { get { return _id; } set { _id = value; } }
 
+        public DateTime lastwarning { get; set; }
         public DateTime LastSeen { get; set; }
         public DateTime LastActive { get; set; }
         public List<score> CommandScore { get; set; }
@@ -120,6 +121,7 @@ namespace SeuntjieBot
         public string Message { get; set; }
         public bool Pm { get; set; }
         public User ToUser { get; set; }
+        public string room { get; set; }
     }
     
 }

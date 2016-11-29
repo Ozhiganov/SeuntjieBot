@@ -30,6 +30,7 @@ namespace SeuntjieBot
                 com.Parameters.AddWithValue("TITLE", ToUpdate.Title);
                 com.Parameters.AddWithValue("NOTE", ToUpdate.Note);
                 com.Parameters.AddWithValue("USERTYPE", ToUpdate.UserType);
+                com.Parameters.AddWithValue("lastwarning", ToUpdate.lastwarning);
                 //if (ToUpdate.Uid != -1)
                 {
                     com.Parameters.AddWithValue("UID", ToUpdate.Uid);
@@ -95,14 +96,20 @@ namespace SeuntjieBot
             return tmp;
         }
 
-        internal  override bool Redlist(User ToRedlist, string Reason)
+        internal  override bool Redlist(ListItem Itm)
         {
             SqlConnection sqcon = GetCon();
             bool success = false;
-            SqlCommand com = new SqlCommand("redlist_add", sqcon);
+            SqlCommand com = new SqlCommand("UpdateRedlist", sqcon);
             com.CommandType = System.Data.CommandType.StoredProcedure;
-            com.Parameters.AddWithValue("username", ToRedlist.Uid);
-            com.Parameters.AddWithValue("reason", Reason);
+            com.Parameters.AddWithValue("uid", Itm.uid);
+            com.Parameters.AddWithValue("reason", Itm.reason);
+            com.Parameters.AddWithValue("user_id", Itm.mutingid);
+            com.Parameters.AddWithValue("active", Itm.active);
+            com.Parameters.AddWithValue("time", Itm.time);
+            com.Parameters.AddWithValue("until", Itm.until>Itm.time?Itm.until:Itm.time.AddYears(1));
+            com.Parameters.AddWithValue("redlist", Itm.redlist);
+            com.Parameters.AddWithValue("oid", Itm.oid);
             try
             {
                 sqcon.Open();
@@ -139,7 +146,7 @@ namespace SeuntjieBot
             return success;
         }
 
-        internal  override bool BlackList(User ToRedlist, string Reason)
+        /*internal  override bool BlackList(User ToRedlist, string Reason)
         {
             SqlConnection sqcon = GetCon();
             bool success = false;
@@ -159,7 +166,7 @@ namespace SeuntjieBot
             }
             sqcon.Close();
             return success;
-        }
+        }*/
 
         internal  override bool DeBlacklist(User ToRedlist)
         {

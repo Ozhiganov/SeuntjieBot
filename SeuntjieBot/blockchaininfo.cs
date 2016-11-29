@@ -34,6 +34,29 @@ namespace SeuntjieBot
             }
         }
 
+        public static UnconfirmedTx GetUnconfirmed()
+        {
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create("https://blockchain.info/unconfirmed-transactions?format=json");
+
+                HttpWebResponse resp = (HttpWebResponse)request.GetResponse();
+                UnconfirmedTx block = null;
+                using (System.IO.StreamReader sr = new System.IO.StreamReader(resp.GetResponseStream()))
+                {
+                    string s = sr.ReadToEnd();
+                    block = SeuntjieBot.JsonDeserialize<UnconfirmedTx>(s);
+
+                }
+                return block;
+
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public static addresss GetAddress(string Addy)
         {
             try
@@ -79,6 +102,22 @@ namespace SeuntjieBot
                 return null;
             }
         }
+    }
+
+    public class UnconfirmedTx
+    {
+        public string lock_time { get; set; }
+        public int ver { get; set; }
+        public double size { get; set; }
+        public bool double_spend { get; set; }
+        public long time { get; set; }
+        public long tx_index { get; set; }
+        public double vin_sz { get; set; }
+        public string hash { get; set; }
+        public double vout_sz { get; set; }
+        public string relayed_by { get; set; }
+        public UnconfirmedTx[] txs { get; set; }
+        //public  MyProperty { get; set; }
     }
 
     public class latestblock

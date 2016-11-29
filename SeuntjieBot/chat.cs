@@ -28,5 +28,6 @@ namespace SeuntjieBot
         {
             return MSSQL.Instance().LogMessage(this);
         }
+        public string room { get; set; }
     }
 }

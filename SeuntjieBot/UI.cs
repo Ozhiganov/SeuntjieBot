@@ -113,8 +113,8 @@ namespace SeuntjieBot
             }
 
         }
-        delegate void dCommandsUpdated(List<Command> Commands);
-        void CommandsUpdated(List<Command> Commands)
+        delegate void dCommandsUpdated(object sender,List<Command> Commands);
+        void CommandsUpdated(object sender, List<Command> Commands)
         {
             clbCommands.Items.Clear();
             foreach (Command c in Commands)
@@ -122,11 +122,11 @@ namespace SeuntjieBot
                 clbCommands.Items.Add(c.sCommand, c.Enabled);
             }
         }
-        void seuntjie_CommandsUpdated(Command[] Commands)
+        void seuntjie_CommandsUpdated(object sender, Command[] Commands)
         {
             if (InvokeRequired)
             {
-                Invoke(new dCommandsUpdated(CommandsUpdated), Commands.ToList());
+                Invoke(new dCommandsUpdated(CommandsUpdated),this, Commands.ToList());
                 return;
             }
             else
@@ -139,17 +139,17 @@ namespace SeuntjieBot
             }
         }
 
-        protected virtual bool seuntjie_SendRain(User RainOn, double Amount)
+        protected virtual bool seuntjie_SendRain(object sender, User RainOn, double Amount)
         {
             throw new NotImplementedException();
         }
 
-        protected virtual void seuntjie_SendMessage(SendMessage Message)
+        protected virtual void seuntjie_SendMessage(object sender, SendMessage Message)
         {
             throw new NotImplementedException();
         }
 
-        private double GetBalance()
+        private double GetBalance(object sender)
         {
             
             if (InvokeRequired)
@@ -169,8 +169,8 @@ namespace SeuntjieBot
             throw new NotImplementedException();
         }
 
-        delegate void ActiveChanged(List<User> ActiveUsers);
-        void seuntjie_ActiveUsersChanged(List<User> ActiveUsers)
+        delegate void ActiveChanged(object sender, List<User> ActiveUsers);
+        void seuntjie_ActiveUsersChanged(object sender,List<User> ActiveUsers)
         {
             lbActive.Items.Clear();
             lbEligible.Items.Clear();
@@ -187,12 +187,12 @@ namespace SeuntjieBot
             }
         }
         
-        void seuntjie_ActiveUsersChanged(User[] ActiveUsers)
+        void seuntjie_ActiveUsersChanged(object sender, User[] ActiveUsers)
         {
             if (InvokeRequired)
             {
                 User[] Users = ActiveUsers;
-                Invoke(new ActiveChanged(seuntjie_ActiveUsersChanged), Users.ToList<User>());
+                Invoke(new ActiveChanged(seuntjie_ActiveUsersChanged),this, Users.ToList<User>());
                 return;
             }
            

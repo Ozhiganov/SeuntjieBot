@@ -18,9 +18,9 @@ namespace SeuntjieBot
         internal abstract User updateUser(User ToUpdate);
         internal abstract User Usergetbyname(string Username);
         internal abstract User UsergetbyID(int ID);
-        internal abstract bool Redlist(User ToRedlist, string Reason);
-        internal abstract bool DeRedlist(User ToRedlist);
-        internal abstract bool BlackList(User ToRedlist, string Reason);
+        internal abstract bool Redlist(ListItem Itm);
+        internal abstract bool DeRedlist(User Itm);
+        /*internal abstract bool BlackList(User ToRedlist, string Reason);*/
         internal abstract bool DeBlacklist(User ToRedlist);
         internal abstract int GetUserStatus(User GetFor);
         internal abstract string GetBlackReasonForUser(User GetFor);
@@ -60,6 +60,7 @@ namespace SeuntjieBot
                 tmp.times = !(Reader["times"] is DBNull) ? (int)Reader["times"] : 0;
                 tmp.Listed = GetUserStatus(tmp);
                 tmp.MessageFor = GetMessagesForUser(tmp);
+                tmp.lastwarning = !(Reader["lastwarning"] is DBNull) ? (DateTime)Reader["lastwarning"] : new DateTime();
                 return tmp;
             }
             catch
@@ -89,6 +90,29 @@ namespace SeuntjieBot
 
 
         internal abstract void ReceivedTip(long p, double Amount, DateTime Time);
-        
+
+        public ListItem ListItemParser(IDataReader Reader)
+        {
+            ListItem tmp = null;
+            {
+                try
+                {
+
+                    ListItem tmp2 = new ListItem();
+                    tmp2.active = (bool)Reader["active"];
+                    tmp2.reason = (string)Reader["[reason]"];
+                    tmp2.mutingid = (int)Reader["[user_id]"];
+                    tmp2.uid = (int)Reader["[uid]"];
+                    tmp2.time = (DateTime)Reader["[time]"];
+                    tmp2.until = (DateTime)Reader["[until]"];
+                    tmp2.oid = (int)Reader["[oid]"];
+                    tmp2.redlist = (bool)Reader["[redlist]"];
+                    tmp = tmp2;
+                }
+                catch { }
+            }
+            return tmp;
+        }
+
     }
 }
